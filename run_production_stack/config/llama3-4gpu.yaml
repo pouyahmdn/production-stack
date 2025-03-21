@@ -18,7 +18,7 @@ servingEngineSpec:
     vllmConfig:
       enableChunkedPrefill: false
       enablePrefixCaching: false
-      maxModelLen: 4096
+      maxModelLen: 8192
       dtype: "bfloat16"
       extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.8"]
 
