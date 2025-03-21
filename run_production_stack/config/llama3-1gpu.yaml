@@ -1,0 +1,26 @@
+servingEngineSpec:
+  runtimeClassName: ""
+  servicePort: 30080
+  modelSpec:
+  - name: "llama3"
+    repository: "vllm/vllm-openai"
+    tag: "latest"
+    modelURL: "meta-llama/Meta-Llama-3-8B-Instruct"
+    replicaCount: 1
+
+    requestCPU: 10
+    requestMemory: "22Gi"
+    requestGPU: 1
+
+    pvcStorage: "50Gi"
+    pvcAccessMode:
+      - ReadWriteOnce
+
+    vllmConfig:
+      enableChunkedPrefill: false
+      enablePrefixCaching: false
+      maxModelLen: 4096
+      dtype: "bfloat16"
+      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.8"]
+
+    hf_token: "UNSET"

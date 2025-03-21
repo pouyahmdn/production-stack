@@ -1,0 +1,26 @@
+servingEngineSpec:
+  runtimeClassName: ""
+  servicePort: 30080
+  modelSpec:
+  - name: "deepseek"
+    repository: "vllm/vllm-openai"
+    tag: "latest"
+    modelURL: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+    replicaCount: 1
+
+    requestCPU: 10
+    requestMemory: "22Gi"
+    requestGPU: 1
+
+    pvcStorage: "50Gi"
+    pvcAccessMode:
+      - ReadWriteOnce
+
+    vllmConfig:
+      enableChunkedPrefill: false
+      enablePrefixCaching: false
+      maxModelLen: 4096
+      dtype: "bfloat16"
+      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.8"]
+
+    hf_token: "UNSET"
