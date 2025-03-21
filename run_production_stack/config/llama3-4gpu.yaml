@@ -1,6 +1,5 @@
 servingEngineSpec:
   runtimeClassName: ""
-  servicePort: 30080
   modelSpec:
   - name: "llama3"
     repository: "vllm/vllm-openai"

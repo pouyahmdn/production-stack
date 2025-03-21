@@ -8,5 +8,5 @@ echo "Operating System: $(uname -a)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 bash "$SCRIPT_DIR/install-drivers.sh"
-source ~/.bashrc
+. ~/.bashrc
 bash "$SCRIPT_DIR/install-minikube-cluster.sh"

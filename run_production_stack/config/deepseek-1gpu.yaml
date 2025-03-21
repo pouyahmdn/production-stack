@@ -1,6 +1,5 @@
 servingEngineSpec:
   runtimeClassName: ""
-  servicePort: 30080
   modelSpec:
   - name: "deepseek"
     repository: "vllm/vllm-openai"

@@ -1,7 +1,7 @@
 helm repo add vllm https://vllm-project.github.io/production-stack
-helm install vllm vllm/vllm-stack -f $1 --set servingEngineSpec.modelSpec.hf_token=$HFAPI_TOKEN
+helm install vllm vllm/vllm-stack -f $1 --set servingEngineSpec.modelSpec[0].hf_token="$HFAPI_TOKEN"
 watch -n 1 'kubectl get pods'
-kubectl port-forward svc/vllm-router-service 30080:30080&
+kubectl port-forward svc/vllm-router-service 30080:80&
 local service1_pid=$!
 echo "Port forwarding started. Press Ctrl+C to stop."
 curl -o- http://localhost:30080/v1/models
