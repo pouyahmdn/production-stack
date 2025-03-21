@@ -21,10 +21,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --- Install Prerequisites ---
 echo "Installing kubectl and helm..."
 bash "$SCRIPT_DIR/install-kubectl.sh"
-source ~/.bashrc
+. ~/.bashrc
 kubectl version --client
 bash "$SCRIPT_DIR/install-helm.sh"
-source ~/.bashrc
+. ~/.bashrc
 helm version
 
 # Install minikube if it isn’t already installed.
