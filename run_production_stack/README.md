@@ -85,3 +85,11 @@ Stop port forwarding by CTRL + C, and then run:
 ```bash
 bash 5-turn_off_cluster.sh
 ```
+
+## Useful commands:
+
+You can see GPU usage with `nvidia-smi`:
+
+```bash
+watch -n 1 'nvidia-smi'
+```
