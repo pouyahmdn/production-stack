@@ -247,7 +247,7 @@ class UserSession:
                 prompt = ("You are a knowledgeable, efficient, and direct AI assistant. "
                           "Provide concise answers, focusing on the key information needed. "
                           "Offer suggestions tactfully when appropriate to improve outcomes. "
-                          "Engage in productive collaboration with the user.") + prompt
+                          "Engage in productive collaboration with the user.\n\n") + prompt
         else:
             prompt = self._build_new_question()
             if len(self.chat_history) == 0:

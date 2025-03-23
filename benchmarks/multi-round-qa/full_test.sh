@@ -26,12 +26,12 @@ python3 ./multi-round-qa.py \
         --qps 2 \
         --shared-system-prompt 10 \
         --user-history-prompt 10 \
-        --answer-len 8192 \
+        --answer-len 4096 \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
         --output /tmp/warmup.csv \
         --log-interval 30 \
-        --time 200
+        --time 200 \
         --sharegpt
 
 # CONFIGURATION
@@ -50,12 +50,13 @@ run_benchmark() {
         --qps "$1" \
         --shared-system-prompt 10 \
         --user-history-prompt 10 \
-        --answer-len 8192 \
+        --answer-len 4096 \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
         --output "$2" \
         --log-interval 30 \
-        --time 100
+        --time 180 \
+        --sharegpt
 
     sleep 10
 }
