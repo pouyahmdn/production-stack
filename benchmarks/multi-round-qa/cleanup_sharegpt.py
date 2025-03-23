@@ -1,5 +1,5 @@
 import json
-import tokenizers
+from transformers import AutoTokenizer
 import click
 
 
@@ -11,11 +11,11 @@ import click
 def main( model: str, share_gpt_path: str ):
     with open( share_gpt_path, "r", encoding = "utf-8" ) as file:
         sharegpt_data = json.load( file )
+    tokenizer = AutoTokenizer.from_pretrained( model )
     for chat in sharegpt_data:
         chat[ 'num_round' ] = len( chat[ 'conversations' ] )
         for message in chat[ 'conversations' ]:
-            # TODO: use tokenizer to compute number of tokens for that model
-            message[ 'num_tokens' ] = 1
+            message[ 'num_tokens' ] = len( tokenizer.tokenize( message[ 'value' ] ) )
     with open( share_gpt_path, "w", encoding = "utf-8" ) as file:
         json.dump( sharegpt_data, file, indent = 2 )
 
