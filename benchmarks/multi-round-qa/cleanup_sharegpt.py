@@ -17,7 +17,7 @@ def main( model: str, share_gpt_path: str ):
     for chat in tqdm( sharegpt_data ):
         chat[ 'num_round' ] = len( chat[ 'conversations' ] )
         for message in chat[ 'conversations' ]:
-            message[ 'num_tokens' ] = len( tokenizer.tokenize( message[ 'value' ] ) )
+            message[ 'num_tokens' ] = min( 1, len( tokenizer.tokenize( message[ 'value' ] ) ) )
     with open( share_gpt_path, "w", encoding = "utf-8" ) as file:
         json.dump( sharegpt_data, file, indent = 2 )
 
