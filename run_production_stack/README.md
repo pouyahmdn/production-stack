@@ -31,14 +31,20 @@ bash 6-reload_minikube.sh
 Create a new screen session and start a cluster with one of the configs:
 
 ```bash
-screen -S cluster
+screen -R cluster
 bash 3-turn_on_cluster.sh config/llama3-4gpu.yaml
 ```
 
-After port forwarding starts, detach (CTRL + A + D). Setting up the cluster can take 5-10 minutes. You can query the progress with:
+You can query the progress with:
 
 ```bash
 watch -n 1 'kubectl get pods'
+```
+
+Setting up the cluster can take 5-10 minutes. After the cluster is running, start port forwarding and detach (CTRL + A + D): 
+
+```bash
+kubectl port-forward svc/vllm-router-service 30080:80
 ```
 
 After startup, query available models with this command:
@@ -64,8 +70,8 @@ where you replace `MODEL_TYPE` with the served model name returned from the prev
 Run the following commands:
 
 ```bash
-cd ../../benchmarks/multi-round-qa/
-screen -r benchmark
+cd ../benchmarks/multi-round-qa/
+screen -R benchmark
 source ~/prodstack/bin/activate
 bash full_test.sh MODEL_TYPE http://localhost:30080/v1 TEST_NAME
 ```

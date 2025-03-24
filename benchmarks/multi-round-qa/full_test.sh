@@ -8,7 +8,7 @@ fi
 # Get the script directory to reference local scripts reliably.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-. "$SCRIPT_DIR/../../run_production_stack/2-set-api_tokens.sh"
+. "$SCRIPT_DIR/../../run_production_stack/2-set_api_tokens.sh"
 
 MODEL=$1
 BASE_URL=$2
@@ -39,7 +39,7 @@ python3 ./multi-round-qa.py \
 # CONFIGURATION
 NUM_USERS=320
 NUM_ROUNDS=10
-QPS_VALUES=(32.0 24.0 16.0 12.0 8.0 6.0 3.0 2.0 1.5 1.0)
+QPS_VALUES=(32.0 24.0 16.0 12.0 8.0 6.0 4.0 3.0 2.0 1.5 1.0)
 
 run_benchmark() {
     # $1: qps

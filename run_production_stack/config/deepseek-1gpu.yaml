@@ -8,7 +8,7 @@ servingEngineSpec:
     replicaCount: 1
 
     requestCPU: 10
-    requestMemory: "22.8Gi"
+    requestMemory: "23000Mi"
     requestGPU: 1
 
     pvcStorage: "50Gi"
@@ -20,6 +20,6 @@ servingEngineSpec:
       enablePrefixCaching: false
       maxModelLen: 32768
       dtype: "bfloat16"
-      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.95"]
+      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.98"]
 
     hf_token: "UNSET"
