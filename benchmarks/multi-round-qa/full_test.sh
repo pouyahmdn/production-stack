@@ -39,7 +39,7 @@ python3 ./multi-round-qa.py \
 # CONFIGURATION
 NUM_USERS=320
 NUM_ROUNDS=10
-QPS_VALUES=(4.1 3.7 3.3 2.9 2.5 2.1 1.7 1.3 0.9 0.5 0.1)
+QPS_VALUES=(32.0 24.0 16.0 12.0 8.0 6.0 3.0 2.0 1.5 1.0)
 
 run_benchmark() {
     # $1: qps
