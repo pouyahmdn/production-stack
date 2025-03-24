@@ -193,7 +193,7 @@ class CustomRouter( RoutingInterface ):
             if url not in engine_stats or url not in request_stats:
                 return 0
             else:
-                logger.debug( f"{url}, {request_stats[ url ].in_prefill_requests}, {request_stats[ url ].in_decoding_requests}, {engine_stats[ url ].num_running_requests}" )
+                logger.debug( f"{url}, {request_stats[ url ].in_prefill_requests}, {request_stats[ url ].in_decoding_requests}, {engine_stats[ url ].num_queuing_requests}, {engine_stats[ url ].num_running_requests}" )
                 total_requests = engine_stats[ url ].num_queuing_requests + request_stats[ url ].in_prefill_requests + \
                                  request_stats[ url ].in_decoding_requests
                 return total_requests * request_stats[ url ].avg_latency - request_stats[ url ].in_decoding_requests * \

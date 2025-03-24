@@ -20,6 +20,10 @@ servingEngineSpec:
       enablePrefixCaching: false
       maxModelLen: 32768
       dtype: "bfloat16"
-      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.98"]
+      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.97"]
 
     hf_token: "UNSET"
+routerSpec:
+  repository: "pouyah/vllm_router_custom"
+  tag: "latest"
+  routingLogic: "custom"
