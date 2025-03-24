@@ -23,3 +23,6 @@ servingEngineSpec:
       extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.98"]
 
     hf_token: "UNSET"
+routerSpec:
+  repository: "pouyah/vllm_router_custom"
+  tag: "latest"
