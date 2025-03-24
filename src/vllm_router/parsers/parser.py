@@ -99,7 +99,7 @@ def parse_args():
         "--routing-logic",
         type=str,
         required=True,
-        choices=["roundrobin", "session"],
+        choices=["roundrobin", "session", "custom"],
         help="The routing logic to use",
     )
     parser.add_argument(
