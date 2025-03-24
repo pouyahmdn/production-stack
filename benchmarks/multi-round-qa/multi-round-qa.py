@@ -8,6 +8,7 @@ from typing import Optional
 
 import openai
 import pandas as pd
+import numpy as np
 
 from utils import AsyncLoopWrapper, init_logger
 
@@ -203,6 +204,14 @@ class UserSession:
 
         self.finished = False
 
+        # self.rng = np.random.RandomState( seed = self.user_config.user_id )
+        # self.sigma = 2.0
+        # self.mu = np.log( self.user_config.gap_between_requests ) - self.sigma ** 2 / 2
+        # self.next_gap = self.rng.lognormal( mean = self.mu, sigma = self.sigma )
+
+        # Tweaking user-request inter-arrival changes the workload. Best keep it static for now.
+        self.next_gap = self.user_config.gap_between_requests
+
     def _update_result(self, response: Response):
         self.prompt_lengths.append(response.prompt_tokens)
         self.generation_lengths.append(response.generation_tokens)
@@ -317,7 +326,7 @@ class UserSession:
             self._launch_new_request(timestamp, request_executor)
             return
 
-        if timestamp - self.last_request_time > self.user_config.gap_between_requests:
+        if timestamp - self.last_request_time > self.next_gap:
             if self.has_unfinished_request:
                 if timestamp - self.last_unfinished_log > 10:
                     logger.warning(
@@ -328,6 +337,7 @@ class UserSession:
                 return
 
             self._launch_new_request(timestamp, request_executor)
+            # self.next_gap = self.rng.lognormal(mean=self.mu, sigma=self.sigma)
             return
 
     def summary(self) -> pd.DataFrame:
@@ -357,6 +367,11 @@ class UserSessionManager:
         )
         self.gap_between_users = session_alive_time / (workload_config.num_users + 0)
         self.ramp_up_time = workload_config.num_users * self.gap_between_users
+
+        self.rng = np.random.RandomState( seed = 192 )
+        self.sigma = 2.0
+        self.mu = np.log( self.gap_between_users ) - self.sigma ** 2 / 2
+        self.next_gap = self.rng.lognormal( mean = self.mu, sigma = self.sigma )
 
         logger.info(
             f"Gap between users: {self.gap_between_users} secs.\n"
@@ -424,9 +439,10 @@ class UserSessionManager:
         if self.start_time is None:
             self.start_time = timestamp
 
-        if timestamp - self.last_user_join > self.gap_between_users:
+        if timestamp - self.last_user_join > self.next_gap:
             self._create_user_session()
             self.last_user_join = timestamp
+            self.next_gap = self.rng.lognormal( mean = self.mu, sigma = self.sigma )
             logger.info(
                 f"Joined a new user {self.user_id}, "
                 f"now active users: {len(self.sessions)}"
