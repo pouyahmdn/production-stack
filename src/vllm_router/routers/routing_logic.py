@@ -193,23 +193,17 @@ class CustomRouter( RoutingInterface ):
             if url not in engine_stats or url not in request_stats:
                 return 0
             else:
-                qreq = engine_stats[ url ].num_queuing_requests
-                rreq  = engine_stats[ url ].num_running_requests
-                ireq = request_stats[ url ].in_prefill_requests
-                oreq = request_stats[ url ].in_decoding_requests
+                ireq = request_stats[ url ].ts_prefill_enqueue
+                oreq = request_stats[ url ].ts_prefill_enqueue
                 avg_gen_lat = request_stats[ url ].avg_decoding_length
                 avg_ttft = request_stats[ url ].ttft
-                logger.debug( f"{url}, {ireq}, {oreq}, {qreq}, {rreq}, {avg_gen_lat}, {avg_ttft}" )
-                
-                if qreq < 0 or ireq < 0 or oreq < 0 or avg_gen_lat < 0 or avg_ttft < 0:
+                logger.debug( f"{url}, {ireq}, {oreq}, {avg_gen_lat}, {avg_ttft}" )
+
+                if avg_gen_lat < 0:
                     return request_stats[ url ].qps
 
-                assert qreq >= 0
-                assert ireq >= 0
-                assert oreq >= 0
                 assert avg_gen_lat >= 0
-                assert avg_ttft >= 0
-                return (qreq + ireq) * (avg_gen_lat + avg_ttft) + oreq * avg_gen_lat
+                return len( ireq ) * avg_gen_lat + sum( max(tdiff, avg_gen_lat) for tdiff in oreq )
 
         lowest_work = float( "inf" )
         ret = None

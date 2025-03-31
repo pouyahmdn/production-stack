@@ -27,6 +27,10 @@ class RequestStats:
     in_prefill_requests: int
     # Total number of requests during decoding
     in_decoding_requests: int
+    #
+    ts_prefill_enqueue: list[float]
+    #
+    ts_decoding_enqueue: list[float]
     # Total number of requests finished
     finished_requests: int
     # How long the engine has been serving requests (uptime)
@@ -116,7 +120,9 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
 
         # Number of requests in different stages (from the start of the router)
         self.in_prefill_requests: Dict[str, int] = {}
+        self.in_prefill_requests_ids: Dict[str, set[str]] = {}
         self.in_decoding_requests: Dict[str, int] = {}
+        self.in_decoding_requests_ids: Dict[str, set[str]] = {}
         self.finished_requests: Dict[str, int] = {}
         # New monitors for overall latency and decoding length
         self.latency_monitors: Dict[str, MovingAverageMonitor] = {}
@@ -142,6 +148,9 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         if engine_url not in self.in_prefill_requests:
             self.in_prefill_requests[engine_url] = 0
         self.in_prefill_requests[engine_url] += 1
+        if engine_url not in self.in_prefill_requests_ids:
+            self.in_prefill_requests_ids[engine_url] = set()
+        self.in_prefill_requests_ids[engine_url].add(request_id)
 
         if engine_url not in self.qps_monitors:
             self.qps_monitors[engine_url] = MovingAverageMonitor(
@@ -166,12 +175,17 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         # Record first token time (do not pop so we can compute overall latency later)
         self.first_token_time[(engine_url, request_id)] = timestamp
 
-        if engine_url not in self.in_decoding_requests:
-            self.in_decoding_requests[engine_url] = 0
         self.in_prefill_requests[engine_url] = max(
             0, self.in_prefill_requests.get(engine_url, 1) - 1
         )
+        self.in_prefill_requests_ids[engine_url].discard(request_id)
+
+        if engine_url not in self.in_decoding_requests:
+            self.in_decoding_requests[engine_url] = 0
         self.in_decoding_requests[engine_url] += 1
+        if engine_url not in self.in_decoding_requests_ids:
+            self.in_decoding_requests_ids[engine_url] = set()
+        self.in_decoding_requests_ids[engine_url].add(request_id)
 
         if engine_url not in self.ttft_monitors:
             self.ttft_monitors[engine_url] = MovingAverageMonitor(
@@ -208,6 +222,8 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
             )
         dec_lat = timestamp - self.first_token_time[(engine_url, request_id)]
         self.decoding_length_monitors[engine_url].update(timestamp, dec_lat)
+
+        self.in_prefill_requests_ids[engine_url].discard(request_id)
 
     def on_request_swapped(self, engine_url: str, request_id: str, timestamp: float):
         # This function should be called if a request is determined to be swapped from GPU to CPU.
@@ -259,6 +275,9 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
             in_decoding = self.in_decoding_requests.get(engine_url, 0)
             finished = self.finished_requests.get(engine_url, 0)
 
+            in_prefill_ts_s = [current_time - self.request_start_time[(engine_url, r)] for r in self.in_prefill_requests_ids.get(engine_url, set())]
+            in_decode_ts_s = [current_time - self.first_token_time[(engine_url, r)] for r in self.in_decoding_requests_ids.get(engine_url, set())]
+
             if engine_url in self.decoding_length_monitors:
                 avg_dec_len = self.decoding_length_monitors[engine_url].get_average()
             else:
@@ -281,7 +300,9 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
                 qps=qps,
                 ttft=ttft,
                 in_prefill_requests=in_prefill,
+                ts_prefill_enqueue=in_prefill_ts_s,
                 in_decoding_requests=in_decoding,
+                ts_decoding_enqueue = in_decode_ts_s,
                 finished_requests=finished,
                 uptime=(
                     current_time - self.first_query_time if self.first_query_time else 0
