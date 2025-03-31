@@ -223,7 +223,7 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         dec_lat = timestamp - self.first_token_time[(engine_url, request_id)]
         self.decoding_length_monitors[engine_url].update(timestamp, dec_lat)
 
-        self.in_prefill_requests_ids[engine_url].discard(request_id)
+        self.in_decoding_requests_ids[engine_url].discard(request_id)
 
     def on_request_swapped(self, engine_url: str, request_id: str, timestamp: float):
         # This function should be called if a request is determined to be swapped from GPU to CPU.
