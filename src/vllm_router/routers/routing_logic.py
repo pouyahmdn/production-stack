@@ -193,11 +193,13 @@ class CustomRouter( RoutingInterface ):
             if url not in engine_stats or url not in request_stats:
                 return 0
             else:
+                len_ireq = request_stats[ url ].in_prefill_requests
+                len_oreq = request_stats[ url ].in_decoding_requests
                 ireq = request_stats[ url ].ts_prefill_enqueue
-                oreq = request_stats[ url ].ts_prefill_enqueue
+                oreq = request_stats[ url ].ts_decoding_enqueue
                 avg_gen_lat = request_stats[ url ].avg_decoding_length
                 avg_ttft = request_stats[ url ].ttft
-                logger.debug( f"{url}, {ireq}, {oreq}, {avg_gen_lat}, {avg_ttft}" )
+                logger.debug( f"{url}, {ireq}, {oreq}, {len_ireq}, {len_oreq}, {avg_gen_lat}, {avg_ttft}" )
 
                 if avg_gen_lat < 0:
                     return request_stats[ url ].qps
