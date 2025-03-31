@@ -199,7 +199,7 @@ class CustomRouter( RoutingInterface ):
                 oreq = request_stats[ url ].ts_decoding_enqueue
                 avg_gen_lat = request_stats[ url ].avg_decoding_length
                 avg_ttft = request_stats[ url ].ttft
-                logger.debug( f"{url}, {ireq}, {oreq}, {len_ireq}, {len_oreq}, {avg_gen_lat}, {avg_ttft}" )
+                logger.debug( f"{url}, {sum(ireq)/(len(ireq)+1e-5)}, {sum(oreq)/(len(oreq)+1e-5)}, {len_ireq}, {len_oreq}, {avg_ttft}, {avg_gen_lat}" )
 
                 if avg_gen_lat < 0:
                     return request_stats[ url ].qps
