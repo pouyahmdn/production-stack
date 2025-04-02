@@ -99,3 +99,27 @@ You can see GPU usage with `nvidia-smi`:
 ```bash
 watch -n 1 'nvidia-smi'
 ```
+
+## 5. Build Router (Only use if you change vllm-router source code)
+
+```bash
+docker build -t pouyah/vllm_router_custom:latest -f docker/Dockerfile .
+```
+
+Then:
+
+```bash
+minikube image load pouyah/vllm_router_custom:latest
+```
+
+or:
+
+```bash
+docker push pouyah/vllm_router_custom:latest
+```
+
+or before building image:
+
+```bash
+eval $(minikube docker-env)
+```
