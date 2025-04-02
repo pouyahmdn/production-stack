@@ -209,6 +209,8 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         self.in_decoding_requests[engine_url] = max(
             0, self.in_decoding_requests.get(engine_url, 1) - 1
         )
+        self.in_decoding_requests_ids[engine_url].discard(request_id)
+
         self.finished_requests[engine_url] += 1
         if engine_url not in self.latency_monitors:
             self.latency_monitors[engine_url] = MovingAverageMonitor(
@@ -222,8 +224,6 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
             )
         dec_lat = timestamp - self.first_token_time[(engine_url, request_id)]
         self.decoding_length_monitors[engine_url].update(timestamp, dec_lat)
-
-        self.in_decoding_requests_ids[engine_url].discard(request_id)
 
     def on_request_swapped(self, engine_url: str, request_id: str, timestamp: float):
         # This function should be called if a request is determined to be swapped from GPU to CPU.
@@ -275,8 +275,8 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
             in_decoding = self.in_decoding_requests.get(engine_url, 0)
             finished = self.finished_requests.get(engine_url, 0)
 
-            in_prefill_ts_s = [current_time - self.request_start_time[(engine_url, r)] for r in self.in_prefill_requests_ids.get(engine_url, set())]
-            in_decode_ts_s = [current_time - self.first_token_time[(engine_url, r)] for r in self.in_decoding_requests_ids.get(engine_url, set())]
+            # in_prefill_ts_s = [current_time - self.request_start_time[(engine_url, r)] for r in self.in_prefill_requests_ids.get(engine_url, set())]
+            # in_decode_ts_s = [current_time - self.first_token_time[(engine_url, r)] for r in self.in_decoding_requests_ids.get(engine_url, set())]
 
             if engine_url in self.decoding_length_monitors:
                 avg_dec_len = self.decoding_length_monitors[engine_url].get_average()
@@ -300,9 +300,11 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
                 qps=qps,
                 ttft=ttft,
                 in_prefill_requests=in_prefill,
-                ts_prefill_enqueue=in_prefill_ts_s,
+                # ts_prefill_enqueue=in_prefill_ts_s,
+                ts_prefill_enqueue=[],
                 in_decoding_requests=in_decoding,
-                ts_decoding_enqueue = in_decode_ts_s,
+                # ts_decoding_enqueue = in_decode_ts_s,
+                ts_decoding_enqueue = [],
                 finished_requests=finished,
                 uptime=(
                     current_time - self.first_query_time if self.first_query_time else 0
