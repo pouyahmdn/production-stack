@@ -120,9 +120,9 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
 
         # Number of requests in different stages (from the start of the router)
         self.in_prefill_requests: Dict[str, int] = {}
-        self.in_prefill_requests_ids: Dict[str, set[str]] = {}
+        # self.in_prefill_requests_ids: Dict[str, set[str]] = {}
         self.in_decoding_requests: Dict[str, int] = {}
-        self.in_decoding_requests_ids: Dict[str, set[str]] = {}
+        # self.in_decoding_requests_ids: Dict[str, set[str]] = {}
         self.finished_requests: Dict[str, int] = {}
         # New monitors for overall latency and decoding length
         self.latency_monitors: Dict[str, MovingAverageMonitor] = {}
@@ -148,9 +148,9 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         if engine_url not in self.in_prefill_requests:
             self.in_prefill_requests[engine_url] = 0
         self.in_prefill_requests[engine_url] += 1
-        if engine_url not in self.in_prefill_requests_ids:
-            self.in_prefill_requests_ids[engine_url] = set()
-        self.in_prefill_requests_ids[engine_url].add(request_id)
+        # if engine_url not in self.in_prefill_requests_ids:
+        #     self.in_prefill_requests_ids[engine_url] = set()
+        # self.in_prefill_requests_ids[engine_url].add(request_id)
 
         if engine_url not in self.qps_monitors:
             self.qps_monitors[engine_url] = MovingAverageMonitor(
@@ -178,14 +178,14 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         self.in_prefill_requests[engine_url] = max(
             0, self.in_prefill_requests.get(engine_url, 1) - 1
         )
-        self.in_prefill_requests_ids[engine_url].discard(request_id)
+        # self.in_prefill_requests_ids[engine_url].discard(request_id)
 
         if engine_url not in self.in_decoding_requests:
             self.in_decoding_requests[engine_url] = 0
         self.in_decoding_requests[engine_url] += 1
-        if engine_url not in self.in_decoding_requests_ids:
-            self.in_decoding_requests_ids[engine_url] = set()
-        self.in_decoding_requests_ids[engine_url].add(request_id)
+        # if engine_url not in self.in_decoding_requests_ids:
+        #     self.in_decoding_requests_ids[engine_url] = set()
+        # self.in_decoding_requests_ids[engine_url].add(request_id)
 
         if engine_url not in self.ttft_monitors:
             self.ttft_monitors[engine_url] = MovingAverageMonitor(
@@ -209,7 +209,7 @@ class RequestStatsMonitor(metaclass=SingletonMeta):
         self.in_decoding_requests[engine_url] = max(
             0, self.in_decoding_requests.get(engine_url, 1) - 1
         )
-        self.in_decoding_requests_ids[engine_url].discard(request_id)
+        # self.in_decoding_requests_ids[engine_url].discard(request_id)
 
         self.finished_requests[engine_url] += 1
         if engine_url not in self.latency_monitors:
