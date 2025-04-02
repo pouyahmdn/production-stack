@@ -17,6 +17,7 @@ logger = init_logger( __name__ )
 class RoutingLogic( str, enum.Enum ):
     ROUND_ROBIN = "roundrobin"
     SESSION_BASED = "session"
+    LEAST_LOADED = "llq"
     CUSTOM_LOGIC = "custom"
 
 
@@ -165,6 +166,46 @@ class SessionRouter( RoutingInterface ):
         return url
 
 
+class LeastLoadedRouter( RoutingInterface ):
+
+    def __init__( self ):
+        if hasattr( self, "_initialized" ):
+            return
+        self._initialized = True
+
+    def route_request( self,
+                       endpoints: List[ EndpointInfo ],
+                       engine_stats: Dict[ str, EngineStats ],
+                       request_stats: Dict[ str, RequestStats ],
+                       request: Request, ) -> str:
+        """
+        Route the request to the appropriate engine URL
+
+        Args:
+            endpoints (List[EndpointInfo]): The list of engine URLs
+            engine_stats (Dict[str, EngineStats]): The engine stats indicating
+                the 'physical' load of each engine
+            request_stats (Dict[str, RequestStats]): The request stats
+                indicating the request-level performance of each engine
+            request (Request): The incoming request
+        """
+
+        def estimate_work( url: str ) -> float:
+            if url not in request_stats:
+                return 0
+            else:
+                return request_stats[ url ].in_prefill_requests + request_stats[ url ].in_decoding_requests
+
+        lowest_work = float( "inf" )
+        ret = None
+        for info in endpoints:
+            endpoint_work = estimate_work( info.url )
+            if endpoint_work < lowest_work:
+                lowest_work = endpoint_work
+                ret = info.url
+        return ret
+
+
 class CustomRouter( RoutingInterface ):
 
     def __init__( self ):
@@ -190,7 +231,7 @@ class CustomRouter( RoutingInterface ):
         """
 
         def estimate_work( url: str ) -> float:
-            if url not in engine_stats or url not in request_stats:
+            if url not in request_stats:
                 return 0
             else:
                 len_ireq = request_stats[ url ].in_prefill_requests
@@ -199,7 +240,7 @@ class CustomRouter( RoutingInterface ):
                 oreq = request_stats[ url ].ts_decoding_enqueue
                 avg_gen_lat = request_stats[ url ].avg_decoding_length
                 avg_ttft = request_stats[ url ].ttft
-                logger.debug( f"{url}, {sum(ireq)/(len(ireq)+1e-5)}, {sum(oreq)/(len(oreq)+1e-5)}, {len_ireq}, {len_oreq}, {avg_ttft}, {avg_gen_lat}" )
+                logger.debug( f"{url}, {sum( ireq ) / (len( ireq ) + 1e-5)}, {sum( oreq ) / (len( oreq ) + 1e-5)}, {len_ireq}, {len_oreq}, {avg_ttft}, {avg_gen_lat}" )
 
                 if avg_gen_lat < 0:
                     return request_stats[ url ].qps
@@ -225,6 +266,9 @@ def initialize_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) -> 
     elif routing_logic == RoutingLogic.SESSION_BASED:
         logger.info( f"Initializing session-based routing logic with kwargs: {kwargs}" )
         return SessionRouter( kwargs.get( "session_key" ) )
+    elif routing_logic == RoutingLogic.LEAST_LOADED:
+        logger.info( f"Initializing LLQ routing logic" )
+        return LeastLoadedRouter( )
     elif routing_logic == RoutingLogic.CUSTOM_LOGIC:
         logger.info( f"Initializing custom routing logic" )
         return CustomRouter( )
@@ -234,7 +278,7 @@ def initialize_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) -> 
 
 def reconfigure_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) -> RoutingInterface:
     # Remove the existing routers from the singleton registry
-    for cls in (SessionRouter, RoundRobinRouter, CustomRouter):
+    for cls in (SessionRouter, RoundRobinRouter, LeastLoadedRouter, CustomRouter):
         if cls in SingletonABCMeta._instances:
             del SingletonABCMeta._instances[ cls ]
     return initialize_routing_logic( routing_logic, *args, **kwargs )
@@ -242,7 +286,7 @@ def reconfigure_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) ->
 
 def get_routing_logic( ) -> RoutingInterface:
     # Look up in our singleton registry which router (if any) has been created.
-    for cls in (SessionRouter, RoundRobinRouter, CustomRouter):
+    for cls in (SessionRouter, RoundRobinRouter, LeastLoadedRouter, CustomRouter):
         if cls in SingletonABCMeta._instances:
             return cls( )
     raise ValueError( "The global router has not been initialized" )
