@@ -57,20 +57,20 @@ Then launch an inference request like this:
 
 ```bash
 curl -X POST http://localhost:30080/v1/completions -H "Content-Type: application/json" -d '{
-    "model": "MODEL_TYPE",
+    "model": "meta-llama/Meta-Llama-3-8B-Instruct",
     "prompt": "Who are you?",
     "max_tokens": 50
   }'
 ```
 
-where you replace `MODEL_TYPE` with the served model name returned from the previous `curl` query.
+where you replace `meta-llama/Meta-Llama-3-8B-Instruct` with the served model name returned from the previous `curl` query.
 
 ## 3. Running benchmark
 
 Run the following commands:
 
 ```bash
-cd ../benchmarks/multi-round-qa/
+cd ../benchmarks/
 screen -R benchmark
 source ~/prodstack/bin/activate
 bash full_test.sh MODEL_TYPE http://localhost:30080/v1 TEST_NAME
@@ -103,23 +103,12 @@ watch -n 1 'nvidia-smi'
 ## 5. Build Router (Only use if you change vllm-router source code)
 
 ```bash
+eval $(minikube docker-env)
 docker build -t pouyah/vllm_router_custom:latest -f docker/Dockerfile .
 ```
 
-Then:
-
-```bash
-minikube image load pouyah/vllm_router_custom:latest
-```
-
-or:
+Optionally push the image to docker hub (will take several minutes):
 
 ```bash
 docker push pouyah/vllm_router_custom:latest
-```
-
-or before building image:
-
-```bash
-eval $(minikube docker-env)
 ```

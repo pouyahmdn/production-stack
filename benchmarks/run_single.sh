@@ -9,7 +9,6 @@ MODEL=$1
 BASE_URL=$2
 
 # CONFIGURATION
-NUM_USERS=15
 NUM_ROUNDS=20
 
 SYSTEM_PROMPT=1000 # Shared system prompt length
@@ -20,7 +19,7 @@ run_benchmark() {
     # $1: qps
     # $2: output file
     python3 ./multi-round-qa.py \
-        --num-users $NUM_USERS \
+        --user-lag 10 \
         --num-rounds $NUM_ROUNDS \
         --qps "$1" \
         --shared-system-prompt "$SYSTEM_PROMPT" \

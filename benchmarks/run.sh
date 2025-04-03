@@ -20,7 +20,7 @@ ANSWER_LEN=100 # Generation length per round
 warmup() {
     # Warm up the vLLM with a lot of user queries
     python3 ./multi-round-qa.py \
-        --num-users 1 \
+        --user-lag 0.5 \
         --num-rounds 2 \
         --qps 2 \
         --shared-system-prompt $SYSTEM_PROMPT \
@@ -40,7 +40,6 @@ MODEL=$1
 BASE_URL=$2
 
 # CONFIGURATION
-NUM_USERS=320
 NUM_ROUNDS=10
 
 SYSTEM_PROMPT=1000 # Shared system prompt length
@@ -53,7 +52,7 @@ run_benchmark() {
 
     # Real run
     python3 ./multi-round-qa.py \
-        --num-users $NUM_USERS \
+        --user-lag 10 \
         --num-rounds $NUM_ROUNDS \
         --qps "$1" \
         --shared-system-prompt "$SYSTEM_PROMPT" \

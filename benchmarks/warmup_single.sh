@@ -13,7 +13,7 @@ ANSWER_LEN=100 # Generation length per round
 warmup() {
     # Warm up the vLLM with a lot of user queries
     python3 ./multi-round-qa.py \
-        --num-users 1 \
+        --user-lag 0.5 \
         --num-rounds 2 \
         --qps 2 \
         --shared-system-prompt $SYSTEM_PROMPT \

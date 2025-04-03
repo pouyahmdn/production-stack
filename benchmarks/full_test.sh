@@ -23,23 +23,20 @@ else
 fi
 
 python3 ./multi-round-qa.py \
-        --num-users 1 \
+        --user-lag 0 \
         --num-rounds 2 \
         --qps 2 \
-        --shared-system-prompt 10 \
-        --user-history-prompt 10 \
-        --answer-len 4096 \
+        --sharegpt \
+        --answer-len 512 \
+        --ignore-eos \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
         --output /tmp/warmup.csv \
         --log-interval 30 \
-        --time 200 \
-        --sharegpt
+        --time 200
 
 # CONFIGURATION
-NUM_USERS=320
-NUM_ROUNDS=10
-QPS_VALUES=(32.0 24.0 16.0 12.0 8.0 6.0 4.0 3.0 2.0 1.5 1.0)
+QPS_VALUES=(32.0 16.0 8.0 4.0 2.0 1.0)
 
 run_benchmark() {
     # $1: qps
@@ -47,18 +44,17 @@ run_benchmark() {
 
     # Real run
     python3 ./multi-round-qa.py \
-        --num-users $NUM_USERS \
-        --num-rounds $NUM_ROUNDS \
+        --user-lag 10 \
+        --num-rounds 10 \
         --qps "$1" \
-        --shared-system-prompt 10 \
-        --user-history-prompt 10 \
+        --sharegpt \
         --answer-len 4096 \
+        --ignore-eos \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
         --output "$2" \
         --log-interval 30 \
-        --time 180 \
-        --sharegpt
+        --time 600
 
     sleep 10
 }

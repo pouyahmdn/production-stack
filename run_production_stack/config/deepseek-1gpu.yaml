@@ -20,7 +20,7 @@ servingEngineSpec:
       enablePrefixCaching: false
       maxModelLen: 32768
       dtype: "bfloat16"
-      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.97", "--no-enable-prefix-caching"]
+      extraArgs: ["--disable-log-requests", "--gpu-memory-utilization", "0.97"]
 
     hf_token: "UNSET"
 routerSpec:
