@@ -45,7 +45,7 @@ run_benchmark() {
     # Real run
     python3 ./multi-round-qa.py \
         --user-lag 10 \
-        --num-rounds 10 \
+        --num-rounds 1 \
         --qps "$1" \
         --sharegpt \
         --answer-len 4096 \

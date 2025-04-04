@@ -28,3 +28,4 @@ routerSpec:
   tag: "latest"
   routingLogic: "custom"
   imagePullPolicy: "Never"
+  extraArgs: ["--dynamic-config-json", "/home/ubuntu/production_stack/run_production_stack/config/dynamic.json"]
