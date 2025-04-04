@@ -28,4 +28,13 @@ routerSpec:
   tag: "latest"
   routingLogic: "custom"
   imagePullPolicy: "Never"
-  extraArgs: ["--dynamic-config-json", "/home/ubuntu/production_stack/run_production_stack/config/dynamic.json"]
+  extraArgs: ["--dynamic-config-json", "/config/dynamic.json"]
+spec:
+  volumeMounts:
+    - name: config-volume
+      mountPath: /config
+  volumes:
+    - name: config-volume
+      hostPath:
+        path: /config
+        type: Directory
