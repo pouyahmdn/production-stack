@@ -550,10 +550,11 @@ def parse_arguments( ) -> argparse.Namespace:
     assert args.input_inflate_rate >= 0
     assert args.output_inflate_rate >= 0
     assert 1 >= args.input_inflate_rate + args.output_inflate_rate
-    assert args.input_inflate_mult > 1 or (not args.sharegpt)
-    assert args.input_inflate_mult > 1 or (not args.sharegpt)
-    assert args.output_inflate_mult > 1 or (not args.sharegpt)
-    if args.output_inflate_mult > 1:
+
+    if args.input_inflate_mult > 1 and args.input_inflate_rate > 0:
+        assert args.sharegpt
+    if args.output_inflate_mult > 1 and args.output_inflate_rate > 0:
+        assert args.sharegpt
         assert args.ignore_eos
 
     return args
