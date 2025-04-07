@@ -29,12 +29,3 @@ routerSpec:
   routingLogic: "custom"
   imagePullPolicy: "Never"
   extraArgs: ["--dynamic-config-json", "/config/dynamic.json"]
-spec:
-  volumeMounts:
-    - name: config-volume
-      mountPath: /config
-  volumes:
-    - name: config-volume
-      hostPath:
-        path: /config
-        type: Directory
