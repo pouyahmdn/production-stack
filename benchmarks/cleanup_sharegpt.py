@@ -14,25 +14,24 @@ DEFAULT_URL = "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_un
                default = "./ShareGPT.json",
                type = click.Path( dir_okay = False, file_okay = True ), )
 def main( model: str, share_gpt_path: str ):
-    if not os.path.exists( share_gpt_path ):
+    if not os.path.exists( share_gpt_path + ".raw" ):
         print( f"{share_gpt_path} not found. Downloading from Hugging Face..." )
         response = requests.get( DEFAULT_URL )
         response.raise_for_status( )
-        with open( share_gpt_path, "w", encoding = "utf-8" ) as file:
+        with open( share_gpt_path + ".raw", "w", encoding = "utf-8" ) as file:
             file.write( response.text )
         print( "Download complete." )
-    with open( share_gpt_path, "r", encoding = "utf-8" ) as file:
-        sharegpt_data = json.load( file )
 
-    with open( share_gpt_path, "r", encoding = "utf-8" ) as file:
-        sharegpt_data = json.load( file )
-    tokenizer = AutoTokenizer.from_pretrained( model, token = os.getenv( "HFAPI_TOKEN" ) )
-    for chat in tqdm( sharegpt_data ):
-        chat[ 'num_round' ] = len( chat[ 'conversations' ] )
-        for message in chat[ 'conversations' ]:
-            message[ 'num_tokens' ] = max( 1, len( tokenizer.tokenize( message[ 'value' ] ) ) )
-    with open( share_gpt_path, "w", encoding = "utf-8" ) as file:
-        json.dump( sharegpt_data, file, indent = 2 )
+    if not os.path.exists( share_gpt_path ):
+        with open( share_gpt_path + ".raw", "r", encoding = "utf-8" ) as file:
+            sharegpt_data = json.load( file )
+        tokenizer = AutoTokenizer.from_pretrained( model, token = os.getenv( "HFAPI_TOKEN" ) )
+        for chat in tqdm( sharegpt_data ):
+            chat[ 'num_round' ] = len( chat[ 'conversations' ] )
+            for message in chat[ 'conversations' ]:
+                message[ 'num_tokens' ] = max( 1, len( tokenizer.tokenize( message[ 'value' ] ) ) )
+        with open( share_gpt_path, "w", encoding = "utf-8" ) as file:
+            json.dump( sharegpt_data, file, indent = 2 )
 
 
 if __name__ == "__main__":
