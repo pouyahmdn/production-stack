@@ -3,3 +3,5 @@ pandas
 tqdm
 transformers
 click
+fastparquet
+pyarrow

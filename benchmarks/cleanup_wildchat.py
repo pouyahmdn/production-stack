@@ -8,12 +8,11 @@ import pandas as pd
 BASE_URL = "https://huggingface.co/datasets/allenai/WildChat-1M/resolve/main/data/train-{i:05d}-of-00014.parquet"
 NUM_FILES = 14
 DATA_DIR = "./wildchat_data"
-COMBINED_JSON_PATH = "./ShareGPT.json"
 
 @click.command()
 @click.option("--model", required=True, type=str)
 @click.option("--wild_chat_path",
-              default=COMBINED_JSON_PATH,
+              default="WildChat.pqt",
               type=click.Path(dir_okay=False, file_okay=True), )
 def main(model: str, wild_chat_path: str):
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -21,7 +20,7 @@ def main(model: str, wild_chat_path: str):
 
     for i in range(NUM_FILES):
         file_url = BASE_URL.format(i=i)
-        file_path = file_url.split("/")[-1]
+        file_path = DATA_DIR + "/" + file_url.split("/")[-1]
 
         if not os.path.exists(file_path):
             print(f"{file_path} not found. Downloading from Hugging Face...")
@@ -39,9 +38,9 @@ def main(model: str, wild_chat_path: str):
     tokenizer = AutoTokenizer.from_pretrained(model, token=os.getenv("HFAPI_TOKEN"))
 
     df[ 'num_round' ] = df[ 'turn' ] * 2
-    for chat in tqdm(df):
-        for message in chat['conversations']:
-            message['num_tokens'] = max(1, len(tokenizer.tokenize(message['value'])))
+    for index, chat in tqdm(df.iterrows(), total=df.shape[0]):
+        for message in chat['conversation']:
+            message['num_tokens'] = max(1, len(tokenizer.tokenize(message['content'])))
 
     df.to_parquet( wild_chat_path )
     print(f"Saved combined parquet to {wild_chat_path}")
