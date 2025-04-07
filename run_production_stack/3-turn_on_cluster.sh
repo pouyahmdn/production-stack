@@ -1,3 +1,7 @@
+#!/bin/bash
 . 2-set_api_tokens.sh
-helm repo add vllm https://vllm-project.github.io/production-stack
-helm install vllm vllm/vllm-stack -f $1 --set servingEngineSpec.modelSpec[0].hf_token="$HFAPI_TOKEN"
+
+# Get the script directory to reference local scripts reliably.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+helm install vllm "$SCRIPT_DIR/../helm" -f $1 --set servingEngineSpec.modelSpec[0].hf_token="$HFAPI_TOKEN"
