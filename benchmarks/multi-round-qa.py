@@ -382,7 +382,7 @@ class UserSessionManager:
                 self.session_summaries.append( session.summary( ) )
         self.sessions = [ s for s in self.sessions if not s.finished ]
 
-    def step( self, timestamp: float, executor: RequestExecutor ):
+    def step( self, timestamp: float, executor: RequestExecutor ) -> float:
         if self.start_time is None:
             self.start_time = timestamp
 
@@ -397,6 +397,8 @@ class UserSessionManager:
             session.step( timestamp, executor )
 
         self._remove_finished_sessions( )
+
+        return self.next_gap
 
     @staticmethod
     def process_summary( df: pd.DataFrame,
@@ -568,8 +570,8 @@ def main( ):
     try:
         while True:
             num_steps += 1
-            manager.step( time.time( ), executor )
-            time.sleep( step_interval )
+            next_t = manager.step( time.time( ), executor )
+            time.sleep( max(min( step_interval, next_t - 0.005 ), 0.0) )
 
             if time.time( ) - last_summary_time > args.log_interval:
                 manager.summary( last_summary_time, time.time( ) )
