@@ -8,7 +8,7 @@ fi
 # Get the script directory to reference local scripts reliably.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-. "$SCRIPT_DIR/../../run_production_stack/2-set_api_tokens.sh"
+. "$SCRIPT_DIR/../run_production_stack/2-set_api_tokens.sh"
 
 MODEL=$1
 BASE_URL=$2
