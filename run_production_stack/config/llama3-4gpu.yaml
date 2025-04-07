@@ -26,6 +26,6 @@ servingEngineSpec:
 routerSpec:
   repository: "pouyah/vllm_router_custom"
   tag: "latest"
-  routingLogic: "custom"
-  imagePullPolicy: "Never"
+  routingLogic: "llq"
+  imagePullPolicy: "IfNotPresent"
   extraArgs: ["--dynamic-config-json", "/config/dynamic.json"]
