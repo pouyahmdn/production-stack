@@ -188,6 +188,7 @@ class UserSession:
     def __init__( self, user_config: UserConfig, use_sharegpt = False, sharegpt_data = None ):
         self.user_config = user_config
         self.last_request_time = None
+        self.last_response_time = None
         self.chat_history = ChatHistory( )
         self.question_id = 0
         self.use_sharegpt = use_sharegpt
@@ -278,6 +279,7 @@ class UserSession:
     def _on_request_finished( self, response: Response ):
         self.chat_history.on_system_response( response.body )
         self.has_unfinished_request = False
+        self.last_response_time = response.finish_time
         logger.debug( f"User {self.user_config.user_id} finished one request. "
                       f"Prompt tokens: {response.prompt_tokens}, "
                       f"generation tokens: {response.generation_tokens}" )
@@ -306,14 +308,7 @@ class UserSession:
             self._launch_new_request( timestamp, request_executor )
             return
 
-        if timestamp - self.last_request_time > self.next_gap:
-            if self.has_unfinished_request:
-                if timestamp - self.last_unfinished_log > 10:
-                    logger.warning( f"User {self.user_config.user_id} has an unfinished "
-                                    "request and unable to fit the QPS requirement." )
-                    self.last_unfinished_log = timestamp
-                return
-
+        if not self.has_unfinished_request and self.last_response_time + self.user_config.gap_between_requests < timestamp:
             self._launch_new_request( timestamp, request_executor )
             return
 
