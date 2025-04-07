@@ -194,6 +194,10 @@ class LeastLoadedRouter( RoutingInterface ):
             if url not in request_stats:
                 return 0
             else:
+                if len( request_stats[ url ].ts_prefill_enqueue ) != request_stats[ url ].in_prefill_requests:
+                    logger.debug( f"{url}, {len( request_stats[ url ].ts_prefill_enqueue )}, {request_stats[ url ].in_prefill_requests}" )
+                if len( request_stats[ url ].ts_decoding_enqueue ) != request_stats[ url ].in_decoding_requests:
+                    logger.debug( f"{url}, {len( request_stats[ url ].ts_decoding_enqueue )}, {request_stats[ url ].in_decoding_requests}" )
                 return request_stats[ url ].in_prefill_requests + request_stats[ url ].in_decoding_requests
 
         lowest_work = float( "inf" )
