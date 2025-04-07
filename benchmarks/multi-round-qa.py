@@ -144,12 +144,12 @@ class RequestExecutor:
             if chunk_message is not None:
                 if first_token_time is None and chunk_message != "":
                     first_token_time = time.time( )
-                if last_token_time is None:
-                    last_token_time = time.time( )
-                else:
-                    new_token_time = time.time( )
-                    itl.append( new_token_time - last_token_time )
-                    last_token_time = new_token_time
+                # if last_token_time is None:
+                #     last_token_time = time.time( )
+                # else:
+                #     new_token_time = time.time( )
+                #     itl.append( new_token_time - last_token_time )
+                #     last_token_time = new_token_time
                 words += chunk_message
         time_end = time.time( )
         tokens_out = tok.usage.completion_tokens
@@ -570,12 +570,13 @@ def main( ):
     try:
         while True:
             num_steps += 1
-            next_t = manager.step( time.time( ), executor )
-            time.sleep( max(min( step_interval, next_t - 0.005 ), 0.0) )
+            next_t = manager.step( time.time( ), executor ) + time.time()
 
             if time.time( ) - last_summary_time > args.log_interval:
                 manager.summary( last_summary_time, time.time( ) )
                 last_summary_time = time.time( )
+            
+            time.sleep( max(min( step_interval, next_t - time.time() - 0.005 ), 0.0) )
 
             if args.time is not None and time.time( ) - start_time > args.time:
                 break
