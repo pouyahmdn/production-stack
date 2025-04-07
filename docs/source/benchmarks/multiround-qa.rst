@@ -52,7 +52,8 @@ To run the multi-round QA benchmark, use the following example command:
         --qps 0.5 \
         --shared-system-prompt 1000 \
         --user-history-prompt 2000 \
-        --answer-len 100 \
+        --max-input-len 4000 \
+        --max-output-len 100 \
         --ignore_eos \
         --model meta-llama/Llama-3.1-8B-Instruct \
         --base-url http://localhost:30080/v1
@@ -66,7 +67,8 @@ or for sharegpt:
         --num-rounds 10 \
         --qps 0.5 \
         --sharegpt \
-        --answer-len 4096 \
+        --max-input-len 4096 \
+        --max-output-len 4096 \
         --ignore_eos \
         --model meta-llama/Llama-3.1-8B-Instruct \
         --base-url http://localhost:30080/v1
@@ -86,10 +88,11 @@ Configuring the workload
 - ``--qps <float>``: The overall queries per second (QPS) rate for the system.
 - ``--shared-system-prompt <int>``: Length of the system prompt shared across all users (in tokens).
 - ``--user-history-prompt <int>``: Length of the user-specific context (simulating existing chat history) (in tokens).
-- ``--answer-len <int>``: Maximum length of the answer expected (in tokens).
+- ``--max-input-len <int>``: Maximum length of the prompt expected (in tokens).
+- ``--max-output-len <int>``: Maximum length of the answer expected (in tokens).
 - ``--init-user-id <int>``: The initial user ID to start the benchmark (default = 0). This is useful when you want to resume the benchmark from a specific user ID or avoid serving engine caching the request from previous runs.
 - ``--sharegpt``: If this option is present, the script will use ShareGPT workload instead of dummy context.
-- ``--ignore-eos``: If this option is present, the script will force responses to be exactly answer-len, or minimum of answer-len and sharegpt response length.
+- ``--ignore-eos``: If this option is present, the script will force responses to be exactly max-output-len, or minimum of max-output-len and sharegpt response length.
 
 Configuring the serving engine connection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

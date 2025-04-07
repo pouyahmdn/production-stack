@@ -18,7 +18,8 @@ warmup() {
         --qps 2 \
         --shared-system-prompt $SYSTEM_PROMPT \
         --user-history-prompt $CHAT_HISTORY \
-        --answer-len $ANSWER_LEN \
+        --max-input-len 22000 \
+        --max-output-len $ANSWER_LEN \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
         --output /tmp/warmup.csv \

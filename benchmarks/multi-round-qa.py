@@ -26,8 +26,11 @@ class WorkloadConfig:
     # Length of the user-specific data
     user_info_len: int
 
-    # Length of the answer in one round
-    answer_len: int
+    # Max length of the answer in one round
+    max_output_len: int
+
+    # Max length of the prompt in one round
+    max_input_len: int
 
     # Number of rounds in the conversation
     num_rounds: int
@@ -61,8 +64,11 @@ class UserConfig:
     # Length of the user-specific data
     user_info_len: int
 
-    # Answer length
-    answer_len: int
+    # Max length of the answer in one round
+    max_output_len: int
+
+    # Max length of the prompt in one round
+    max_input_len: int
 
     # Gap between two requests
     gap_between_requests: float
@@ -78,7 +84,8 @@ class UserConfig:
         return UserConfig( user_id = user_id,
                            system_prompt_len = workload_config.system_prompt_len,
                            user_info_len = workload_config.user_info_len,
-                           answer_len = workload_config.answer_len,
+                           max_input_len = workload_config.max_input_len,
+                           max_output_len = workload_config.max_output_len,
                            gap_between_requests = workload_config.user_lag,
                            num_rounds = workload_config.num_rounds,
                            ignore_eos = workload_config.ignore_eos, )
@@ -252,11 +259,11 @@ class UserSession:
 
     def _get_max_tokens( self, sharegpt: bool ):
         if not sharegpt:
-            max_tokens = self.user_config.answer_len
+            max_tokens = self.user_config.max_output_len
         else:
             prev_q_id = self.question_id - 1
             max_tokens = self.sharegpt_data[ "conversations" ][ 2 * prev_q_id + 1 ][ "num_tokens" ]
-            max_tokens = min( max_tokens, self.user_config.answer_len )
+            max_tokens = min( max_tokens, self.user_config.max_output_len )
         return max_tokens
 
     def _launch_new_request( self, timestamp: float, request_executor: RequestExecutor ):
@@ -365,8 +372,9 @@ class UserSessionManager:
             for i, d in enumerate(q['conversations']):
                 if i % 2 == 0:
                     if rng.random() < self.workload_config.input_irate:
-                        d['num_tokens'] *= self.workload_config.input_imult
-                        d['value'] *= self.workload_config.input_imult
+                        max_mult = self.workload_config.max_input_len // d['num_tokens']
+                        d['num_tokens'] *= min(self.workload_config.input_imult, max_mult)
+                        d['value'] *= min(self.workload_config.input_imult, max_mult)
                 else:
                     if rng.random() < self.workload_config.output_irate:
                         d['num_tokens'] *= self.workload_config.output_imult
@@ -494,7 +502,8 @@ def parse_arguments( ) -> argparse.Namespace:
     parser = argparse.ArgumentParser( description = "Parse benchmark configurations." )
 
     parser.add_argument( "--sharegpt", action = "store_true", help = "Whether to use ShareGPT dataset" )
-    parser.add_argument( "--answer-len", type = int, required = True, help = "Max length of responses", )
+    parser.add_argument( "--max-input-len", type = int, required = True, help = "Max length of prompts", )
+    parser.add_argument( "--max-output-len", type = int, required = True, help = "Max length of responses", )
     parser.add_argument( "--ignore-eos", action = "store_true", help = "Force response lengths to be exactly asnwer-len or shareGPT response lengths" )
     parser.add_argument( "--num-rounds", type = int, required = True, help = "Number of rounds in the conversation", )
     parser.add_argument( "--user-lag",
@@ -536,6 +545,7 @@ def parse_arguments( ) -> argparse.Namespace:
     if not args.sharegpt:
         assert args.user_history_prompt is not None, "Must provide --user-history-prompt if not using ShareGPT"
         assert args.shared_system_prompt is not None, "Must provide --shared-system-prompt if not using ShareGPT"
+        assert args.user_history_prompt + args.shared_system_prompt <= args.max_input_len
 
     assert args.input_inflate_rate >= 0
     assert args.output_inflate_rate >= 0
@@ -583,7 +593,8 @@ def main( ):
     workload_config = WorkloadConfig( user_lag = args.user_lag,
                                       system_prompt_len = args.shared_system_prompt,
                                       user_info_len = args.user_history_prompt,
-                                      answer_len = args.answer_len,
+                                      max_input_len = args.max_input_len,
+                                      max_output_len = args.max_output_len,
                                       num_rounds = args.num_rounds,
                                       qps = args.qps,
                                       model = args.model,

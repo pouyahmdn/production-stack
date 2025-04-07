@@ -21,7 +21,8 @@ python3 ./multi-round-qa.py \
         --num-rounds 2 \
         --qps 2 \
         --sharegpt \
-        --answer-len 512 \
+        --max-input-len 4096 \
+        --max-output-len 512 \
         --ignore-eos \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
@@ -42,7 +43,8 @@ run_benchmark() {
         --num-rounds 1 \
         --qps "$1" \
         --sharegpt \
-        --answer-len 4096 \
+        --max-input-len 4096 \
+        --max-output-len 4096 \
         --input-inflate-rate 0.05 \
         --output-inflate-rate 0.05 \
         --input-inflate-mult 10 \
