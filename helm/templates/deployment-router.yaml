@@ -99,11 +99,11 @@ spec:
             path: /health
             port: {{ .Values.routerSpec.containerPort }}
         volumeMounts:
-          - name: config-volume
-            mountPath: /config
-      volumes:
         - name: config-volume
-          hostPath:
-            path: /config
-            type: Directory
+          mountPath: /config
+      volumes:
+      - name: config-volume
+        hostPath:
+          path: /config
+          type: Directory
 {{- end }}
