@@ -549,7 +549,8 @@ def main( ):
         global logger
         logger = init_logger( __name__, level = logging.DEBUG )
 
-    step_interval = 0.1
+    max_step_interval = 0.01
+    min_step_interval = 0.001
 
     executor = RequestExecutor( base_url = args.base_url, api_key = "EMPTY", model = args.model )
 
@@ -575,8 +576,8 @@ def main( ):
             if time.time( ) - last_summary_time > args.log_interval:
                 manager.summary( last_summary_time, time.time( ) )
                 last_summary_time = time.time( )
-            
-            time.sleep( max(min( step_interval, next_t - time.time() - 0.005 ), 0.0) )
+
+            time.sleep( max(min( max_step_interval, next_t - time.time() - 0.005 ), min_step_interval) )
 
             if args.time is not None and time.time( ) - start_time > args.time:
                 break
