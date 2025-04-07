@@ -26,10 +26,17 @@ def main( model: str, share_gpt_path: str ):
         with open( share_gpt_path + ".raw", "r", encoding = "utf-8" ) as file:
             sharegpt_data = json.load( file )
         tokenizer = AutoTokenizer.from_pretrained( model, token = os.getenv( "HFAPI_TOKEN" ) )
-        for chat in tqdm( sharegpt_data ):
+        roles = [ 'human', 'gpt' ]
+        to_keep = set( )
+        for i, chat in tqdm( enumerate( sharegpt_data ), total = len( sharegpt_data ) ):
+            to_keep.add( i )
             chat[ 'num_round' ] = len( chat[ 'conversations' ] )
-            for message in chat[ 'conversations' ]:
+            for j, message in enumerate( chat[ 'conversations' ] ):
                 message[ 'num_tokens' ] = max( 1, len( tokenizer.tokenize( message[ 'value' ] ) ) )
+                if message[ 'from' ] != roles[ j % 2 ]:
+                    to_keep.discard( i )
+        print(f'Only keeping {len(to_keep)}/{len(sharegpt_data)} conversations due to irregular conversation roles...')
+        sharegpt_data = [sharegpt_data[ i ] for i in to_keep]
         with open( share_gpt_path, "w", encoding = "utf-8" ) as file:
             json.dump( sharegpt_data, file, indent = 2 )
 

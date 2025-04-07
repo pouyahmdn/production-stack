@@ -41,6 +41,14 @@ class WorkloadConfig:
     # Let response be exactly output_len
     ignore_eos: bool
 
+    # Rate of inflation
+    input_irate: float
+    output_irate: float
+
+    # Multiplier of inflation
+    input_imult: int
+    output_imult: int
+
 
 @dataclass
 class UserConfig:
@@ -194,10 +202,6 @@ class UserSession:
         self.use_sharegpt = use_sharegpt
         if self.use_sharegpt:
             self.sharegpt_data = sharegpt_data
-            if self.sharegpt_data[ "num_round" ] % 2 == 0:
-                self.start_with_gpt = False
-            else:
-                self.start_with_gpt = True
 
         self.has_unfinished_request = False
         self.last_unfinished_log = 0
@@ -242,10 +246,7 @@ class UserSession:
             prompt = (
                     f"Here's question #{self.question_id}: can you tell me " + "a new long story with a happy ending?")
         else:
-            if self.start_with_gpt:
-                prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id + 1 ][ "value" ]
-            else:
-                prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ "value" ]
+            prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ "value" ]
         self.question_id += 1
         return prompt
 
@@ -254,10 +255,7 @@ class UserSession:
             max_tokens = self.user_config.answer_len
         else:
             prev_q_id = self.question_id - 1
-            if self.start_with_gpt:
-                max_tokens = self.sharegpt_data[ "conversations" ][ 2 * prev_q_id + 2 ][ "num_tokens" ]
-            else:
-                max_tokens = self.sharegpt_data[ "conversations" ][ 2 * prev_q_id + 1 ][ "num_tokens" ]
+            max_tokens = self.sharegpt_data[ "conversations" ][ 2 * prev_q_id + 1 ][ "num_tokens" ]
             max_tokens = min( max_tokens, self.user_config.answer_len )
         return max_tokens
 
@@ -362,6 +360,19 @@ class UserSessionManager:
         orig_len = len( self.sharegpt_data )
         self.sharegpt_data = [ d for d in self.sharegpt_data if d[ "num_round" ] > 2 * self.workload_config.num_rounds ]
         logger.info( f"There are {len( self.sharegpt_data )}/{orig_len} dataset entries with {self.workload_config.num_rounds} rounds." )
+        rng = np.random.RandomState( seed = 151 )
+        for q in self.sharegpt_data:
+            for i, d in enumerate(q['conversations']):
+                if i % 2 == 0:
+                    if rng.random() < self.workload_config.input_irate:
+                        d['num_tokens'] *= self.workload_config.input_imult
+                        d['value'] *= self.workload_config.input_imult
+                else:
+                    if rng.random() < self.workload_config.output_irate:
+                        d['num_tokens'] *= self.workload_config.output_imult
+                        d['value'] *= self.workload_config.output_imult
+        rng.shuffle( self.sharegpt_data )
+
 
     def _create_user_session( self ):
         self.user_id += 1
@@ -514,12 +525,27 @@ def parse_arguments( ) -> argparse.Namespace:
                          default = 30,
                          help = "The time between two summary loggings in seconds", )
 
+    parser.add_argument( "--input-inflate-rate", type = float, default = 0, help = "Input rate of inflation", )
+    parser.add_argument( "--output-inflate-rate", type = float, default = 0, help = "Output rate of inflation", )
+    parser.add_argument( "--input-inflate-mult", type = int, default = 1, help = "Input inflation multiplier", )
+    parser.add_argument( "--output-inflate-mult", type = int, default = 1, help = "Output inflation multiplier", )
+
     parser.add_argument( "--verbose", action = "store_true", help = "Whether to enable verbose logging" )
     args = parser.parse_args( )
 
     if not args.sharegpt:
         assert args.user_history_prompt is not None, "Must provide --user-history-prompt if not using ShareGPT"
         assert args.shared_system_prompt is not None, "Must provide --shared-system-prompt if not using ShareGPT"
+
+    assert args.input_inflate_rate >= 0
+    assert args.output_inflate_rate >= 0
+    assert 1 >= args.input_inflate_rate + args.output_inflate_rate
+    assert args.input_inflate_mult > 1 or (not args.sharegpt)
+    assert args.input_inflate_mult > 1 or (not args.sharegpt)
+    assert args.output_inflate_mult > 1 or (not args.sharegpt)
+    if args.output_inflate_mult > 1:
+        assert args.ignore_eos
+
     return args
 
 
@@ -561,7 +587,11 @@ def main( ):
                                       num_rounds = args.num_rounds,
                                       qps = args.qps,
                                       model = args.model,
-                                      ignore_eos = args.ignore_eos )
+                                      ignore_eos = args.ignore_eos,
+                                      input_irate = args.input_inflate_rate,
+                                      output_irate = args.output_inflate_rate,
+                                      input_imult = args.input_inflate_mult,
+                                      output_imult = args.output_inflate_mult,)
 
     manager = UserSessionManager( workload_config, init_user_id = args.init_user_id, use_sharegpt = args.sharegpt )
 

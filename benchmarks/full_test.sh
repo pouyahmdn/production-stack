@@ -43,12 +43,16 @@ run_benchmark() {
         --qps "$1" \
         --sharegpt \
         --answer-len 4096 \
+        --input-inflate-rate 0.05 \
+        --output-inflate-rate 0.05 \
+        --input-inflate-mult 10 \
+        --output-inflate-mult 10 \
         --ignore-eos \
         --model "$MODEL" \
         --base-url "$BASE_URL" \
         --output "$2" \
         --log-interval 30 \
-        --time 600
+        --time 300
 
     sleep 10
 }
