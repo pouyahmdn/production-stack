@@ -14,13 +14,7 @@ MODEL=$1
 BASE_URL=$2
 KEY=$3
 
-if [ -f "$SCRIPT_DIR/ShareGPT.json" ]; then
-  echo "File exists. Continuing..."
-else
-  wget https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
-  python3 cleanup_sharegpt.py --model $MODEL --share_gpt_path ShareGPT_V3_unfiltered_cleaned_split.json
-  mv ShareGPT_V3_unfiltered_cleaned_split.json ShareGPT.json
-fi
+python3 cleanup_sharegpt.py --model $MODEL --share_gpt_path ShareGPT.json
 
 python3 ./multi-round-qa.py \
         --user-lag 0 \
