@@ -1,3 +1,7 @@
 {
-    "routing_logic": "roundrobin"
+    "routing_logic": "roundrobin",
+    "service_discovery": "k8s",
+    "k8s-namespace": "default",
+    "k8s-label-selector": "environment=test,release=test",
+    "k8s-port": "8000"
 }
