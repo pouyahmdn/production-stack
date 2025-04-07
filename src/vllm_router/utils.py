@@ -61,13 +61,14 @@ def validate_url(url: str) -> bool:
 
 
 # Adapted from: https://github.com/sgl-project/sglang/blob/v0.4.1/python/sglang/srt/utils.py#L630 # noqa: E501
-def set_ulimit(target_soft_limit=65535):
+def set_ulimit(target_soft_limit=524288):
     resource_type = resource.RLIMIT_NOFILE
     current_soft, current_hard = resource.getrlimit(resource_type)
 
     if current_soft < target_soft_limit:
         try:
             resource.setrlimit(resource_type, (target_soft_limit, current_hard))
+            logger.warning( f"Found ulimit of {current_soft}/{current_hard} and set it to {target_soft_limit}.")
         except ValueError as e:
             logger.warning(
                 "Found ulimit of %s and failed to automatically increase"
