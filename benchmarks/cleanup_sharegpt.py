@@ -15,7 +15,7 @@ DEFAULT_URL = "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_un
                type = click.Path( dir_okay = False, file_okay = True ), )
 def main( model: str, share_gpt_path: str ):
     if not os.path.exists( share_gpt_path + ".raw" ):
-        print( f"{share_gpt_path} not found. Downloading from Hugging Face..." )
+        print( f"{share_gpt_path}.raw not found. Downloading from Hugging Face..." )
         response = requests.get( DEFAULT_URL )
         response.raise_for_status( )
         with open( share_gpt_path + ".raw", "w", encoding = "utf-8" ) as file:
