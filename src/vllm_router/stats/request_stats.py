@@ -151,6 +151,17 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         if self.first_query_time is None:
             self.first_query_time = timestamp
 
+    def on_request_kill( self, engine_url: str, request_id: str, timestamp: float ):
+        logger.debug( f"Kill request for ({engine_url}, {request_id})..." )
+        if (engine_url, request_id) in self.request_start_time:
+            self.in_prefill_requests[ engine_url ] = max( 0, self.in_prefill_requests.get( engine_url, 1 ) - 1 )
+            self.in_prefill_requests_ids[ engine_url ].discard( request_id )
+            del self.request_start_time[(engine_url, request_id)]
+        if (engine_url, request_id) in self.first_token_time:
+            self.in_decoding_requests[ engine_url ] = max( 0, self.in_decoding_requests.get( engine_url, 1 ) - 1 )
+            self.in_decoding_requests_ids[ engine_url ].discard( request_id )
+            del self.first_token_time[(engine_url, request_id)]
+
     def on_request_response( self, engine_url: str, request_id: str, timestamp: float ):
         """
         Tell the monitor that a response token has been received for a request.
@@ -211,6 +222,9 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             self.decoding_length_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
         dec_lat = timestamp - self.first_token_time[ (engine_url, request_id) ]
         self.decoding_length_monitors[ engine_url ].update( timestamp, dec_lat )
+
+        del self.request_start_time[(engine_url, request_id)]
+        del self.first_token_time[ (engine_url, request_id) ]
 
     def on_request_swapped( self, engine_url: str, request_id: str, timestamp: float ):
         # This function should be called if a request is determined to be swapped from GPU to CPU.

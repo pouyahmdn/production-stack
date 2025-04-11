@@ -106,6 +106,11 @@ async def process_request(
         backend_url, request_id, time.time()
     )
 
+    # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
+    request.app.state.request_stats_monitor.on_request_kill(
+        backend_url, request_id, time.time( )
+    )
+
     # if debug_request:
     #    logger.debug(f"Finished the request with request id: {debug_request.headers.get('x-request-id', None)} at {time.time()}")
     # Store in semantic cache if applicable
