@@ -254,7 +254,7 @@ class UserSession:
                     f"Here's question #{self.question_id}: can you tell me " + "a new long story with a happy ending?")
         else:
             prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ "value" ]
-            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ]['num_tokens'] <= self.user_config.max_input_len, (self.user_config.max_input_len, self.sharegpt_data[ "conversations" ])
+            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ]['num_tokens'] <= self.user_config.max_input_len
         self.question_id += 1
         return prompt
 
@@ -367,6 +367,8 @@ class UserSessionManager:
             self.sharegpt_data = json.load( file )
         orig_len = len( self.sharegpt_data )
         self.sharegpt_data = [ d for d in self.sharegpt_data if d[ "num_round" ] >= 2 * self.workload_config.num_rounds ]
+        self.sharegpt_data = [ d for d in self.sharegpt_data if all(a[ "num_tokens" ] for a in d['conversations'][::2] <= self.workload_config.max_input_len) ]
+        self.sharegpt_data = [ d for d in self.sharegpt_data if all(a[ "num_tokens" ] for a in d['conversations'][1::2] <= self.workload_config.max_output_len) ]
         logger.info( f"There are {len( self.sharegpt_data )}/{orig_len} dataset entries with {self.workload_config.num_rounds} rounds." )
         rng = np.random.RandomState( seed = 151 )
         for q in self.sharegpt_data:
@@ -375,6 +377,7 @@ class UserSessionManager:
                     if rng.random() < self.workload_config.input_irate:
                         max_mult = self.workload_config.max_input_len // d['num_tokens']
                         max_mult = min(self.workload_config.input_imult, max_mult)
+                        max_mult = max(max_mult, 1)
                         d['num_tokens'] *= max_mult
                         assert d['num_tokens'] <= self.workload_config.max_input_len
                         d['value'] *= max_mult
