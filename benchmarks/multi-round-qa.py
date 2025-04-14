@@ -151,7 +151,7 @@ class RequestExecutor:
 
         itl = [ ]
         first_token_time = None
-        last_token_time = None
+        # last_token_time = None
         async for tok in response:
             if not tok.choices:
                 continue
@@ -373,8 +373,10 @@ class UserSessionManager:
                 if i % 2 == 0:
                     if rng.random() < self.workload_config.input_irate:
                         max_mult = self.workload_config.max_input_len // d['num_tokens']
-                        d['num_tokens'] *= min(self.workload_config.input_imult, max_mult)
-                        d['value'] *= min(self.workload_config.input_imult, max_mult)
+                        max_mult = min(self.workload_config.input_imult, max_mult)
+                        d['num_tokens'] *= max_mult
+                        assert d['num_tokens'] <= self.workload_config.max_input_len
+                        d['value'] *= max_mult
                 else:
                     if rng.random() < self.workload_config.output_irate:
                         d['num_tokens'] *= self.workload_config.output_imult
@@ -404,7 +406,7 @@ class UserSessionManager:
     def step( self, timestamp: float, executor: RequestExecutor ) -> float:
         if self.start_time is None:
             self.start_time = timestamp
-            
+
             self._create_user_session( )
             self.last_user_join = timestamp
             self.next_gap = self.gap_gen( )
