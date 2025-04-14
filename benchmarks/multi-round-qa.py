@@ -404,10 +404,16 @@ class UserSessionManager:
     def step( self, timestamp: float, executor: RequestExecutor ) -> float:
         if self.start_time is None:
             self.start_time = timestamp
+            
+            self._create_user_session( )
+            self.last_user_join = timestamp
+            self.next_gap = self.gap_gen( )
+            logger.info( f"Joined a new user {self.user_id}, "
+                         f"now active users: {len( self.sessions )}" )
 
         if timestamp - self.last_user_join > self.next_gap:
             self._create_user_session( )
-            self.last_user_join = timestamp
+            self.last_user_join += self.next_gap
             self.next_gap = self.gap_gen( )
             logger.info( f"Joined a new user {self.user_id}, "
                          f"now active users: {len( self.sessions )}" )
