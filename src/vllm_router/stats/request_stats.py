@@ -102,8 +102,11 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         if sliding_window_size is None:
             raise ValueError( "RequestStatsMonitor must be initialized with sliding_window_size" )
         self.sliding_window_size = sliding_window_size
+
         self.qps_monitors: Dict[ str, MovingAverageMonitor ] = { }
         self.ttft_monitors: Dict[ str, MovingAverageMonitor ] = { }
+        self.latency_monitors: Dict[ str, MovingAverageMonitor ] = { }
+        self.decoding_length_monitors: Dict[ str, MovingAverageMonitor ] = { }
 
         # The time when the request is coming (engine_url, request_id) -> timestamp
         self.request_start_time: Dict[ Tuple[ str, str ], float ] = { }
@@ -116,9 +119,6 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.in_decoding_requests: Dict[ str, int ] = { }
         self.in_decoding_requests_ids: Dict[ str, set[ str ] ] = { }
         self.finished_requests: Dict[ str, int ] = { }
-        # New monitors for overall latency and decoding length
-        self.latency_monitors: Dict[ str, MovingAverageMonitor ] = { }
-        self.decoding_length_monitors: Dict[ str, MovingAverageMonitor ] = { }
 
         # Counter for swapped requests
         self.swapped_requests: Dict[ str, int ] = { }
