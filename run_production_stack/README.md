@@ -1,6 +1,6 @@
 # Setup
 
-## 1. Install necessary packages and drivers (ONLY ONCE)
+## 1. Install necessary packages and drivers and prepare (ONLY ONCE)
 
 First run:
 
@@ -18,6 +18,21 @@ bash 4-prep_python.sh
 Add hugging face token to `2-set_api_tokens.sh`:
 ```bash
 vim 2-set_api_tokens.sh
+```
+
+Then edit `limits.conf`:
+```bash
+sudo vim /etc/security/limits.conf
+```
+and change ulimit cap by adding:
+```bash
+* hard nofile 524288
+* soft nofile 524288
+```
+Now, logout and login again and verify ulimit cap:
+```bash
+ulimit -a -S | grep "open files"
+ulimit -a -H | grep "open files"
 ```
 
 ## 2. Start cluster
@@ -59,7 +74,8 @@ Then launch an inference request like this:
 curl -X POST http://localhost:30080/v1/completions -H "Content-Type: application/json" -d '{
     "model": "meta-llama/Meta-Llama-3-8B-Instruct",
     "prompt": "Who are you?",
-    "max_tokens": 50
+    "max_tokens": 50,
+    "stream": "true"
   }'
 ```
 
@@ -112,3 +128,9 @@ Optionally push the image to docker hub (will take several minutes):
 ```bash
 docker push pouyah/vllm_router_custom:latest
 ```
+
+### TODO
+
+1. Observe queuing stats + engine stats more rapidly. Can we access metrics from vllm instances?
+2. Experiment with other knobs.
+3. Try larger instance sizes.
