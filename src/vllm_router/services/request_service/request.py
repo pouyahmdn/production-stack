@@ -79,7 +79,7 @@ async def process_request(
 
     # For non-streaming requests, collect the full response to cache it properly
     full_response = bytearray() if not is_streaming else None
-    
+
     try:
         async with request.app.state.httpx_client_wrapper().stream(
             method=request.method,
@@ -109,7 +109,7 @@ async def process_request(
     finally:
         # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
         request.app.state.request_stats_monitor.on_request_kill(
-            backend_url, request_id, time.time( )
+            backend_url, request_id
         )
 
     # if debug_request:
