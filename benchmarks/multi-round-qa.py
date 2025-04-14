@@ -254,7 +254,8 @@ class UserSession:
                     f"Here's question #{self.question_id}: can you tell me " + "a new long story with a happy ending?")
         else:
             prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ "value" ]
-            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ]['num_tokens'] <= self.user_config.max_input_len
+            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][
+                       'num_tokens' ] <= self.user_config.max_input_len
         self.question_id += 1
         return prompt
 
@@ -367,26 +368,25 @@ class UserSessionManager:
             self.sharegpt_data = json.load( file )
         orig_len = len( self.sharegpt_data )
         self.sharegpt_data = [ d for d in self.sharegpt_data if d[ "num_round" ] >= 2 * self.workload_config.num_rounds ]
-        self.sharegpt_data = [ d for d in self.sharegpt_data if all(a[ "num_tokens" ] for a in d['conversations'][::2] <= self.workload_config.max_input_len) ]
-        self.sharegpt_data = [ d for d in self.sharegpt_data if all(a[ "num_tokens" ] for a in d['conversations'][1::2] <= self.workload_config.max_output_len) ]
+        self.sharegpt_data = [ d for d in self.sharegpt_data if all( a[ "num_tokens" ] <= self.workload_config.max_input_len for a in d[ 'conversations' ][ ::2 ] ) ]
+        self.sharegpt_data = [ d for d in self.sharegpt_data if all( a[ "num_tokens" ] <= self.workload_config.max_output_len for a in d[ 'conversations' ][ 1::2 ] ) ]
         logger.info( f"There are {len( self.sharegpt_data )}/{orig_len} dataset entries with {self.workload_config.num_rounds} rounds." )
         rng = np.random.RandomState( seed = 151 )
         for q in self.sharegpt_data:
-            for i, d in enumerate(q['conversations']):
+            for i, d in enumerate( q[ 'conversations' ] ):
                 if i % 2 == 0:
-                    if rng.random() < self.workload_config.input_irate:
-                        max_mult = self.workload_config.max_input_len // d['num_tokens']
-                        max_mult = min(self.workload_config.input_imult, max_mult)
-                        max_mult = max(max_mult, 1)
-                        d['num_tokens'] *= max_mult
-                        assert d['num_tokens'] <= self.workload_config.max_input_len
-                        d['value'] *= max_mult
+                    if rng.random( ) < self.workload_config.input_irate:
+                        max_mult = self.workload_config.max_input_len // d[ 'num_tokens' ]
+                        max_mult = min( self.workload_config.input_imult, max_mult )
+                        max_mult = max( max_mult, 1 )
+                        d[ 'num_tokens' ] *= max_mult
+                        assert d[ 'num_tokens' ] <= self.workload_config.max_input_len
+                        d[ 'value' ] *= max_mult
                 else:
-                    if rng.random() < self.workload_config.output_irate:
-                        d['num_tokens'] *= self.workload_config.output_imult
-                        d['value'] *= self.workload_config.output_imult
+                    if rng.random( ) < self.workload_config.output_irate:
+                        d[ 'num_tokens' ] *= self.workload_config.output_imult
+                        d[ 'value' ] *= self.workload_config.output_imult
         rng.shuffle( self.sharegpt_data )
-
 
     def _create_user_session( self ):
         self.user_id += 1
@@ -516,7 +516,9 @@ def parse_arguments( ) -> argparse.Namespace:
     parser.add_argument( "--sharegpt", action = "store_true", help = "Whether to use ShareGPT dataset" )
     parser.add_argument( "--max-input-len", type = int, required = True, help = "Max length of prompts", )
     parser.add_argument( "--max-output-len", type = int, required = True, help = "Max length of responses", )
-    parser.add_argument( "--ignore-eos", action = "store_true", help = "Force response lengths to be exactly asnwer-len or shareGPT response lengths" )
+    parser.add_argument( "--ignore-eos",
+                         action = "store_true",
+                         help = "Force response lengths to be exactly asnwer-len or shareGPT response lengths" )
     parser.add_argument( "--num-rounds", type = int, required = True, help = "Number of rounds in the conversation", )
     parser.add_argument( "--user-lag",
                          type = float,
@@ -615,7 +617,7 @@ def main( ):
                                       input_irate = args.input_inflate_rate,
                                       output_irate = args.output_inflate_rate,
                                       input_imult = args.input_inflate_mult,
-                                      output_imult = args.output_inflate_mult,)
+                                      output_imult = args.output_inflate_mult, )
 
     manager = UserSessionManager( workload_config, init_user_id = args.init_user_id, use_sharegpt = args.sharegpt )
 
@@ -625,13 +627,13 @@ def main( ):
     try:
         while True:
             num_steps += 1
-            next_t = manager.step( time.time( ), executor ) + time.time()
+            next_t = manager.step( time.time( ), executor ) + time.time( )
 
             if time.time( ) - last_summary_time > args.log_interval:
                 manager.summary( last_summary_time, time.time( ) )
                 last_summary_time = time.time( )
 
-            time.sleep( max(min( max_step_interval, next_t - time.time() - 0.005 ), min_step_interval) )
+            time.sleep( max( min( max_step_interval, next_t - time.time( ) - 0.005 ), min_step_interval ) )
 
             if args.time is not None and time.time( ) - start_time > args.time:
                 break
