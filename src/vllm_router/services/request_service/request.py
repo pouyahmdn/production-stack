@@ -92,6 +92,7 @@ async def process_request(
         # Stream response content.
         async for chunk in backend_response.aiter_bytes():
             total_len += len(chunk)
+            logger.debug(f"In requests, {request_id}: {first_token}, {len(chunk)}, {time.time()}")
             if not first_token:
                 first_token = True
                 request.app.state.request_stats_monitor.on_request_response(
