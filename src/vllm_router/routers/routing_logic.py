@@ -239,19 +239,21 @@ class CustomRouter( RoutingInterface ):
                 logger.debug( f"{url}, None" )
                 return 0
             else:
-                len_ireq = request_stats[ url ].in_prefill_requests
-                len_oreq = request_stats[ url ].in_decoding_requests
                 ireq = request_stats[ url ].ts_prefill_enqueue
                 oreq = request_stats[ url ].ts_decoding_enqueue
+                len_ireq = len(ireq)
+                len_oreq = len(oreq)
                 avg_gen_lat = request_stats[ url ].avg_decoding_length
                 avg_ttft = request_stats[ url ].ttft
-                logger.debug( f"{url}, {ireq}, {oreq}, {len_ireq}, {len_oreq}, {avg_ttft}, {avg_gen_lat}, {request_stats[ url ].qps}" )
+                in_q_work = len( ireq ) * avg_gen_lat
+                in_d_work = sum( max(tdiff, avg_gen_lat) for tdiff in oreq )
+                logger.debug( f"{url}, {len_ireq}, {len_oreq}, {avg_ttft}, {avg_gen_lat}, {request_stats[ url ].qps}, {in_q_work}, {in_d_work}, {in_q_work + in_d_work}" )
 
                 if avg_gen_lat < 0:
                     return request_stats[ url ].qps
 
                 assert avg_gen_lat >= 0
-                return len( ireq ) * avg_gen_lat + sum( max(tdiff, avg_gen_lat) for tdiff in oreq )
+                return in_q_work + in_d_work
 
         lowest_work = float( "inf" )
         ret = None

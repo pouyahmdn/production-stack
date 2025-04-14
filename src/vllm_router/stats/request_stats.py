@@ -147,11 +147,12 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             self.first_query_time = timestamp
 
     def on_request_kill( self, engine_url: str, request_id: str ):
-        logger.debug( f"Kill request for ({engine_url}, {request_id})..." )
         if (engine_url, request_id) in self.request_start_time:
+            logger.debug( f"Kill request for ({engine_url}, {request_id}) removed request_start_time entry..." )
             self.in_prefill_requests_ids[ engine_url ].discard( request_id )
             del self.request_start_time[(engine_url, request_id)]
         if (engine_url, request_id) in self.first_token_time:
+            logger.debug( f"Kill request for ({engine_url}, {request_id}) removed first_token_time entry..." )
             self.in_decoding_requests_ids[ engine_url ].discard( request_id )
             del self.first_token_time[(engine_url, request_id)]
 
