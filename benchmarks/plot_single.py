@@ -13,7 +13,8 @@ def main( path: str, test_names: list[ str ] ):
     os.makedirs( "figures", exist_ok = True )
     # #################################################################################################################
 
-    for key, lbl in [ ('ttft', "Average Time to First Token (s)"), ('generation_time', 'Average Generation Time (s)'),
+    for key, lbl in [ ('ttlt', 'Average Response Time (s)'), ('ttft', "Average Time to First Token (s)"),
+                      ('generation_time', 'Average Generation Time (s)'),
                       ('prompt_tokens', "Average Number of Prompt Tokens"),
                       ('generation_tokens', 'Average Number of Generation Tokens'), ('question_id', 'Average Round') ]:
         fig, ax = plt.subplots( 1, 1, figsize = (10, 5) )
@@ -27,8 +28,6 @@ def main( path: str, test_names: list[ str ] ):
                 match = pattern.match( filename )
                 if match:
                     qps = float( match.group( 1 ) )
-                    if qps < 0.5:
-                        continue
                     df = pd.read_csv( os.path.join( path, filename ) )
                     q = round( qps, 1 )
                     qpses += [ q ]
@@ -57,13 +56,14 @@ def main( path: str, test_names: list[ str ] ):
         ax.grid( True, alpha = 0.3 )
         ax.set_xlabel( "Targeted Queries Per Second" )
         ax.set_ylabel( lbl )
-        ax.set_title( f"320 users, 10 rounds, ShareGPT" )
+        ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
         plt.legend( loc = "best" )
         plt.savefig( f"figures/{key}.png", dpi = 300 )
 
     # #################################################################################################################
 
     fig, ax = plt.subplots( 1, 1, figsize = (10, 5) )
+    mq = 0
     for name in test_names:
         qpses = [ ]
         stack_results = [ ]
@@ -74,47 +74,6 @@ def main( path: str, test_names: list[ str ] ):
             match = pattern.match( filename )
             if match:
                 qps = float( match.group( 1 ) )
-                if qps < 0.5:
-                    continue
-                df = pd.read_csv( os.path.join( path, filename ) )
-                q = round( qps, 1 )
-                qpses += [ q ]
-                stack_results.append( (df[ "ttft" ].mean( ) + df[ "generation_time" ].mean( )) )
-
-        stack_results = np.array( stack_results )
-        qpses = np.array( qpses )
-        stack_results = stack_results[ np.argsort( qpses ) ]
-        qpses = qpses[ np.argsort( qpses ) ]
-        ax.plot( qpses, stack_results, marker = "s", linewidth = 2, markersize = 5, label = name )
-
-    ax.set_xlim( left = 0 )
-    # ax.set_ylim( bottom = 0 )
-    ax.spines[ "right" ].set_visible( False )
-    ax.spines[ "top" ].set_visible( False )
-    ax.plot( 1, 0, ">k", transform = ax.transAxes, clip_on = False )
-    ax.plot( 0, 1, "^k", transform = ax.transAxes, clip_on = False )
-    ax.grid( True, alpha = 0.3 )
-    ax.set_xlabel( "Targeted Queries Per Second" )
-    ax.set_ylabel( "Average Response Time (s)" )
-    ax.set_title( f"320 users, 10 rounds, ShareGPT" )
-    plt.legend( loc = "best" )
-    plt.savefig( "figures/response.png", dpi = 300 )
-
-    # #################################################################################################################
-
-    fig, ax = plt.subplots( 1, 1, figsize = (10, 5) )
-    for name in test_names:
-        qpses = [ ]
-        stack_results = [ ]
-
-        pattern = re.compile( rf"^{name}_output_(\d+(\.\d+)?)\.csv$" )
-
-        for filename in os.listdir( path ):
-            match = pattern.match( filename )
-            if match:
-                qps = float( match.group( 1 ) )
-                if qps < 0.5:
-                    continue
                 df = pd.read_csv( os.path.join( path, filename ) )
                 q = round( qps, 1 )
                 qpses += [ q ]
@@ -126,6 +85,10 @@ def main( path: str, test_names: list[ str ] ):
         qpses = qpses[ np.argsort( qpses ) ]
         ax.plot( qpses, stack_results, marker = "s", linewidth = 2, markersize = 5, label = name )
 
+        mq = max( mq, max( qpses ) )
+
+    ax.plot( [ 0, mq ], [ 0, mq ], '--', alpha = 0.3, color = 'k' )
+
     ax.set_xlim( left = 0 )
     # ax.set_ylim( bottom = 0 )
     ax.spines[ "right" ].set_visible( False )
@@ -135,7 +98,7 @@ def main( path: str, test_names: list[ str ] ):
     ax.grid( True, alpha = 0.3 )
     ax.set_xlabel( "Targeted Queries Per Second" )
     ax.set_ylabel( "True Queries Per Second" )
-    ax.set_title( f"320 users, 10 rounds, ShareGPT" )
+    ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
     plt.legend( loc = "best" )
     plt.savefig( "figures/qps.png", dpi = 300 )
 
@@ -152,12 +115,11 @@ def main( path: str, test_names: list[ str ] ):
             match = pattern.match( filename )
             if match:
                 qps = float( match.group( 1 ) )
-                if qps < 0.5:
-                    continue
                 df = pd.read_csv( os.path.join( path, filename ) )
                 q = round( qps, 1 )
                 qpses += [ q ]
-                stack_results.append( df['generation_tokens'].sum() / (df[ 'launch_time' ].max( ) - df[ 'launch_time' ].min( )) )
+                stack_results.append(
+                    df[ 'generation_tokens' ].sum( ) / (df[ 'launch_time' ].max( ) - df[ 'launch_time' ].min( )) )
 
         stack_results = np.array( stack_results )
         qpses = np.array( qpses )
@@ -173,8 +135,8 @@ def main( path: str, test_names: list[ str ] ):
     ax.plot( 0, 1, "^k", transform = ax.transAxes, clip_on = False )
     ax.grid( True, alpha = 0.3 )
     ax.set_xlabel( "Targeted Queries Per Second" )
-    ax.set_ylabel( "Generation Throughput" )
-    ax.set_title( f"320 users, 10 rounds, ShareGPT" )
+    ax.set_ylabel( "Generation Throughput (BUYER BEWARE)" )
+    ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
     plt.legend( loc = "best" )
     plt.savefig( "figures/out_thr.png", dpi = 300 )
 
@@ -191,12 +153,11 @@ def main( path: str, test_names: list[ str ] ):
             match = pattern.match( filename )
             if match:
                 qps = float( match.group( 1 ) )
-                if qps < 0.5:
-                    continue
                 df = pd.read_csv( os.path.join( path, filename ) )
                 q = round( qps, 1 )
                 qpses += [ q ]
-                stack_results.append( df['prompt_tokens'].sum() / (df[ 'launch_time' ].max( ) - df[ 'launch_time' ].min( )) )
+                stack_results.append(
+                    df[ 'prompt_tokens' ].sum( ) / (df[ 'launch_time' ].max( ) - df[ 'launch_time' ].min( )) )
 
         stack_results = np.array( stack_results )
         qpses = np.array( qpses )
@@ -212,8 +173,8 @@ def main( path: str, test_names: list[ str ] ):
     ax.plot( 0, 1, "^k", transform = ax.transAxes, clip_on = False )
     ax.grid( True, alpha = 0.3 )
     ax.set_xlabel( "Targeted Queries Per Second" )
-    ax.set_ylabel( "Prefill Throughput" )
-    ax.set_title( f"320 users, 10 rounds, ShareGPT" )
+    ax.set_ylabel( "Prefill Throughput (BUYER BEWARE)" )
+    ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
     plt.legend( loc = "best" )
     plt.savefig( "figures/in_thr.png", dpi = 300 )
 
