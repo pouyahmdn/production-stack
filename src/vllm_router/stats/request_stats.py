@@ -68,7 +68,7 @@ class MovingAverageMonitor:
         """
         self.timestamps.append( timestamp )
         self.values.append( value )
-        while (self.timestamps and self.timestamps[ 0 ] < timestamp - self.sliding_window_size):
+        while self.timestamps and self.timestamps[ 0 ] < timestamp - self.sliding_window_size:
             self.timestamps.popleft( )
             self.values.popleft( )
 
@@ -76,7 +76,7 @@ class MovingAverageMonitor:
         """
         Update the throughput monitor with a new timestamp with no value
         """
-        while (len( self.timestamps ) > 0 and self.timestamps[ 0 ] < timestamp - self.sliding_window_size):
+        while len( self.timestamps ) > 0 and self.timestamps[ 0 ] < timestamp - self.sliding_window_size:
             self.timestamps.popleft( )
             self.values.popleft( )
 
@@ -114,9 +114,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.first_token_time: Dict[ Tuple[ str, str ], float ] = { }
 
         # Number of requests in different stages (from the start of the router)
-        self.in_prefill_requests: Dict[ str, int ] = { }
         self.in_prefill_requests_ids: Dict[ str, set[ str ] ] = { }
-        self.in_decoding_requests: Dict[ str, int ] = { }
         self.in_decoding_requests_ids: Dict[ str, set[ str ] ] = { }
         self.finished_requests: Dict[ str, int ] = { }
 
@@ -137,9 +135,6 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         """
         self.request_start_time[ (engine_url, request_id) ] = timestamp
 
-        if engine_url not in self.in_prefill_requests:
-            self.in_prefill_requests[ engine_url ] = 0
-        self.in_prefill_requests[ engine_url ] += 1
         if engine_url not in self.in_prefill_requests_ids:
             self.in_prefill_requests_ids[ engine_url ] = set( )
         self.in_prefill_requests_ids[ engine_url ].add( request_id )
@@ -151,14 +146,12 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         if self.first_query_time is None:
             self.first_query_time = timestamp
 
-    def on_request_kill( self, engine_url: str, request_id: str, timestamp: float ):
+    def on_request_kill( self, engine_url: str, request_id: str ):
         logger.debug( f"Kill request for ({engine_url}, {request_id})..." )
         if (engine_url, request_id) in self.request_start_time:
-            self.in_prefill_requests[ engine_url ] = max( 0, self.in_prefill_requests.get( engine_url, 1 ) - 1 )
             self.in_prefill_requests_ids[ engine_url ].discard( request_id )
             del self.request_start_time[(engine_url, request_id)]
         if (engine_url, request_id) in self.first_token_time:
-            self.in_decoding_requests[ engine_url ] = max( 0, self.in_decoding_requests.get( engine_url, 1 ) - 1 )
             self.in_decoding_requests_ids[ engine_url ].discard( request_id )
             del self.first_token_time[(engine_url, request_id)]
 
@@ -173,23 +166,21 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         """
         if (engine_url, request_id) not in self.request_start_time:
             logger.debug( f"Something weird happened; we needed ({engine_url}, {request_id}) in request_start_time but it wasn't there" )
+            self.on_request_kill(engine_url, request_id)
             return
-        # Record first token time (do not pop so we can compute overall latency later)
-        self.first_token_time[ (engine_url, request_id) ] = timestamp
 
-        self.in_prefill_requests[ engine_url ] = max( 0, self.in_prefill_requests.get( engine_url, 1 ) - 1 )
         self.in_prefill_requests_ids[ engine_url ].discard( request_id )
 
-        if engine_url not in self.in_decoding_requests:
-            self.in_decoding_requests[ engine_url ] = 0
-        self.in_decoding_requests[ engine_url ] += 1
         if engine_url not in self.in_decoding_requests_ids:
             self.in_decoding_requests_ids[ engine_url ] = set( )
         self.in_decoding_requests_ids[ engine_url ].add( request_id )
 
+        # Record first token time (do not pop so we can compute overall latency later)
+        self.first_token_time[ (engine_url, request_id) ] = timestamp
+
+        # Update TTFT as time from request start to first token
         if engine_url not in self.ttft_monitors:
             self.ttft_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
-        # Update TTFT as time from request start to first token
         ttft = timestamp - self.request_start_time[ (engine_url, request_id) ]
         self.ttft_monitors[ engine_url ].update( timestamp, ttft )
 
@@ -204,20 +195,24 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         """
         if (engine_url, request_id) not in self.request_start_time:
             logger.debug( f"Something weird happened; we needed ({engine_url}, {request_id}) in request_start_time but it wasn't there" )
+            self.on_request_kill(engine_url, request_id)
             return
         if (engine_url, request_id) not in self.first_token_time:
             logger.debug( f"Something weird happened; we needed ({engine_url}, {request_id}) in first_token_time but it wasn't there" )
+            self.on_request_kill(engine_url, request_id)
             return
-        if engine_url not in self.finished_requests:
-            self.finished_requests[ engine_url ] = 0
-        self.in_decoding_requests[ engine_url ] = max( 0, self.in_decoding_requests.get( engine_url, 1 ) - 1 )
+
         self.in_decoding_requests_ids[ engine_url ].discard( request_id )
 
+        if engine_url not in self.finished_requests:
+            self.finished_requests[ engine_url ] = 0
         self.finished_requests[ engine_url ] += 1
+
         if engine_url not in self.latency_monitors:
             self.latency_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
         lat = timestamp - self.request_start_time[ (engine_url, request_id) ]
         self.latency_monitors[ engine_url ].update( timestamp, lat )
+
         if engine_url not in self.decoding_length_monitors:
             self.decoding_length_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
         dec_lat = timestamp - self.first_token_time[ (engine_url, request_id) ]
@@ -254,7 +249,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             finished in the sliding window.
         """
         ret = { }
-        urls = set( self.in_prefill_requests.keys( ) ).union( set( self.in_decoding_requests.keys( ) ) )
+        urls = set( self.in_prefill_requests_ids.keys( ) ).union( set( self.in_prefill_requests_ids.keys( ) ) )
         for engine_url in urls:
             if engine_url not in self.qps_monitors:
                 qps = -1
@@ -270,8 +265,8 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
                 self.ttft_monitors[ engine_url ].update_no_value( current_time )
                 ttft = self.ttft_monitors[ engine_url ].get_average( )
 
-            in_prefill = self.in_prefill_requests.get( engine_url, 0 )
-            in_decoding = self.in_decoding_requests.get( engine_url, 0 )
+            in_prefill = len(self.in_prefill_requests_ids.get( engine_url, set( ) ))
+            in_decoding = len(self.in_decoding_requests_ids.get( engine_url, set( ) ))
             finished = self.finished_requests.get( engine_url, 0 )
 
             in_prefill_ts_s = [ current_time - self.request_start_time[ (engine_url, r) ] for r in
