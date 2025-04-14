@@ -365,7 +365,7 @@ class UserSessionManager:
         with open( "ShareGPT.json", "r", encoding = "utf-8" ) as file:
             self.sharegpt_data = json.load( file )
         orig_len = len( self.sharegpt_data )
-        self.sharegpt_data = [ d for d in self.sharegpt_data if d[ "num_round" ] > 2 * self.workload_config.num_rounds ]
+        self.sharegpt_data = [ d for d in self.sharegpt_data if d[ "num_round" ] >= 2 * self.workload_config.num_rounds ]
         logger.info( f"There are {len( self.sharegpt_data )}/{orig_len} dataset entries with {self.workload_config.num_rounds} rounds." )
         rng = np.random.RandomState( seed = 151 )
         for q in self.sharegpt_data:
