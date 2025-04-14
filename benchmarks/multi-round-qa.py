@@ -254,7 +254,7 @@ class UserSession:
                     f"Here's question #{self.question_id}: can you tell me " + "a new long story with a happy ending?")
         else:
             prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ "value" ]
-            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ]['num_tokens'] <= self.user_config.max_input_len
+            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ]['num_tokens'] <= self.user_config.max_input_len, (self.user_config.max_input_len, self.sharegpt_data[ "conversations" ])
         self.question_id += 1
         return prompt
 
