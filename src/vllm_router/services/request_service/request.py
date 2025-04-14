@@ -79,38 +79,38 @@ async def process_request(
 
     # For non-streaming requests, collect the full response to cache it properly
     full_response = bytearray() if not is_streaming else None
+    
+    try:
+        async with request.app.state.httpx_client_wrapper().stream(
+            method=request.method,
+            url=backend_url + endpoint,
+            headers=dict(request.headers),
+            content=body,
+            timeout=None,
+        ) as backend_response:
+            # Yield headers and status code first.
+            yield backend_response.headers, backend_response.status_code
+            # Stream response content.
+            async for chunk in backend_response.aiter_bytes():
+                total_len += len(chunk)
+                if not first_token:
+                    first_token = True
+                    request.app.state.request_stats_monitor.on_request_response(
+                        backend_url, request_id, time.time()
+                    )
+                    # For non-streaming requests, collect the full response
+                    if full_response is not None:
+                        full_response.extend(chunk)
+                yield chunk
 
-    async with request.app.state.httpx_client_wrapper().stream(
-        method=request.method,
-        url=backend_url + endpoint,
-        headers=dict(request.headers),
-        content=body,
-        timeout=None,
-    ) as backend_response:
-        # Yield headers and status code first.
-        yield backend_response.headers, backend_response.status_code
-        # Stream response content.
-        async for chunk in backend_response.aiter_bytes():
-            total_len += len(chunk)
-            logger.debug(f"In requests, {request_id}: {first_token}, {len(chunk)}, {time.time()}")
-            if not first_token:
-                first_token = True
-                request.app.state.request_stats_monitor.on_request_response(
-                    backend_url, request_id, time.time()
-                )
-                # For non-streaming requests, collect the full response
-                if full_response is not None:
-                    full_response.extend(chunk)
-            yield chunk
-
-    request.app.state.request_stats_monitor.on_request_complete(
-        backend_url, request_id, time.time()
-    )
-
-    # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
-    request.app.state.request_stats_monitor.on_request_kill(
-        backend_url, request_id, time.time( )
-    )
+        request.app.state.request_stats_monitor.on_request_complete(
+            backend_url, request_id, time.time()
+        )
+    finally:
+        # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
+        request.app.state.request_stats_monitor.on_request_kill(
+            backend_url, request_id, time.time( )
+        )
 
     # if debug_request:
     #    logger.debug(f"Finished the request with request id: {debug_request.headers.get('x-request-id', None)} at {time.time()}")
