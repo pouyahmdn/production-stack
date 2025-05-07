@@ -392,7 +392,7 @@ class UserSessionManager:
         self.user_id += 1
         user_config = UserConfig.new_user_config( self.user_id, self.workload_config )
         if self.use_sharegpt:
-            user_session = UserSession( user_config, self.use_sharegpt, self.sharegpt_data[ self.user_id ] )
+            user_session = UserSession( user_config, self.use_sharegpt, self.sharegpt_data[ self.user_id %= len( self.sharegpt_data ) ] )
         else:
             user_session = UserSession( user_config, self.use_sharegpt )
         self.sessions.append( user_session )
