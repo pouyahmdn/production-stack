@@ -117,6 +117,8 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.in_prefill_requests_ids: Dict[ str, set[ str ] ] = { }
         self.in_decoding_requests_ids: Dict[ str, set[ str ] ] = { }
         self.finished_requests: Dict[ str, int ] = { }
+        # Track tokens for each request in decoding: engine_url -> {request_id -> token_count}
+        self.request_decode_tokens: Dict[ str, Dict[ str, int ] ] = { }
 
         # Counter for swapped requests
         self.swapped_requests: Dict[ str, int ] = { }
@@ -155,8 +157,14 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             logger.debug( f"Kill request for ({engine_url}, {request_id}) removed first_token_time entry..." )
             self.in_decoding_requests_ids[ engine_url ].discard( request_id )
             del self.first_token_time[(engine_url, request_id)]
+        if engine_url in self.request_decode_tokens and request_id in self.request_decode_tokens[engine_url]:
+            logger.debug( f"Kill request for ({engine_url}, {request_id}) removed request_decode_tokens entry..." )
+            del self.request_decode_tokens[engine_url][request_id]
+            # Clean up empty engine dict if no more requests
+            if not self.request_decode_tokens[engine_url]:
+                del self.request_decode_tokens[engine_url]
 
-    def on_request_response( self, engine_url: str, request_id: str, timestamp: float ):
+    def on_request_response( self, engine_url: str, request_id: str, timestamp: float, is_first_token: bool = True):
         """
         Tell the monitor that a response token has been received for a request.
 
@@ -165,6 +173,16 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             request_id: The global request ID
             timestamp: The timestamp when the response token was received
         """
+        # Initialize or increment token count for this request
+        if engine_url not in self.request_decode_tokens:
+            self.request_decode_tokens[engine_url] = {}
+        if request_id not in self.request_decode_tokens[engine_url]:
+            self.request_decode_tokens[engine_url][request_id] = 0
+        self.request_decode_tokens[engine_url][request_id] += 1
+        logger.debug(f"Updated token count for request {request_id} on {engine_url}: {self.request_decode_tokens[engine_url][request_id]} tokens")
+        if not is_first_token:
+            return
+        
         if (engine_url, request_id) not in self.request_start_time:
             logger.debug( f"Something weird happened; we needed ({engine_url}, {request_id}) in request_start_time but it wasn't there" )
             self.on_request_kill(engine_url, request_id)
@@ -218,6 +236,14 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             self.decoding_length_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
         dec_lat = timestamp - self.first_token_time[ (engine_url, request_id) ]
         self.decoding_length_monitors[ engine_url ].update( timestamp, dec_lat )
+
+        # Log final token count before cleanup
+        if engine_url in self.request_decode_tokens and request_id in self.request_decode_tokens[engine_url]:
+            logger.info(f"Request {request_id} on {engine_url} completed with {self.request_decode_tokens[engine_url][request_id]} tokens")
+            del self.request_decode_tokens[engine_url][request_id]
+            # Clean up empty engine dict if no more requests
+            if not self.request_decode_tokens[engine_url]:
+                del self.request_decode_tokens[engine_url]
 
         del self.request_start_time[(engine_url, request_id)]
         del self.first_token_time[ (engine_url, request_id) ]
@@ -309,6 +335,19 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
                 num_swapped_requests = swapped, )
         return ret
 
+    def get_total_decode_tokens(self, engine_url: str) -> int:
+        """
+        Get the total number of tokens currently being decoded for a specific engine.
+
+        Args:
+            engine_url: The URL of the serving engine
+
+        Returns:
+            The total number of tokens being decoded across all requests for this engine
+        """
+        if engine_url not in self.request_decode_tokens:
+            return 0
+        return sum(self.request_decode_tokens[engine_url].values())
 
 def initialize_request_stats_monitor( sliding_window_size: float ):
     return RequestStatsMonitor( sliding_window_size )

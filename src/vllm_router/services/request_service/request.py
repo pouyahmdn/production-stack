@@ -96,11 +96,16 @@ async def process_request(
                 if not first_token:
                     first_token = True
                     request.app.state.request_stats_monitor.on_request_response(
-                        backend_url, request_id, time.time()
+                        backend_url, request_id, time.time(), is_first_token=True
                     )
                     # For non-streaming requests, collect the full response
                     if full_response is not None:
                         full_response.extend(chunk)
+                else:
+                    # Call on_request_response for each token to increment the counter
+                    request.app.state.request_stats_monitor.on_request_response(
+                        backend_url, request_id, time.time(), is_first_token=False
+                    )
                 yield chunk
 
         request.app.state.request_stats_monitor.on_request_complete(
