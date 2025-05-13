@@ -7,7 +7,10 @@ import requests
 
 DEFAULT_URL = "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
 
-
+SYSTEM_PROMPT = ("You are a knowledgeable, efficient, and direct AI assistant. "
+                             "Provide concise answers, focusing on the key information needed. "
+                             "Offer suggestions tactfully when appropriate to improve outcomes. "
+                             "Engage in productive collaboration with the user.\n\n")
 @click.command( )
 @click.option( "--model", required = True, type = str )
 @click.option( "--share_gpt_path",
@@ -26,6 +29,7 @@ def main( model: str, share_gpt_path: str ):
         with open( share_gpt_path + ".raw", "r", encoding = "utf-8" ) as file:
             sharegpt_data = json.load( file )
         tokenizer = AutoTokenizer.from_pretrained( model, token = os.getenv( "HFAPI_TOKEN" ) )
+        assert len(tokenizer.tokenize(SYSTEM_PROMPT)) == 42, 'Arash: You need to update the system prompt length here and also in multi-round-qa.py'
         roles = [ 'human', 'gpt' ]
         to_keep = set( )
         for i, chat in tqdm( enumerate( sharegpt_data ), total = len( sharegpt_data ) ):

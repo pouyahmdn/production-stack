@@ -252,12 +252,13 @@ class UserSession:
         if not sharegpt:
             prompt = (
                     f"Here's question #{self.question_id}: can you tell me " + "a new long story with a happy ending?")
+            num_tokens = 0  # For non-sharegpt questions, we don't track tokens
         else:
             prompt = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ "value" ]
-            assert self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][
-                       'num_tokens' ] <= self.user_config.max_input_len
+            num_tokens = self.sharegpt_data[ "conversations" ][ 2 * self.question_id ][ 'num_tokens' ]
+            assert num_tokens <= self.user_config.max_input_len
         self.question_id += 1
-        return prompt
+        return prompt, num_tokens
 
     def _get_max_tokens( self, sharegpt: bool ):
         if not sharegpt:
@@ -269,9 +270,12 @@ class UserSession:
         return max_tokens
 
     def _launch_new_request( self, timestamp: float, request_executor: RequestExecutor ):
-        prompt = self._build_new_question( sharegpt = self.use_sharegpt )
+        prompt, question_tokens = self._build_new_question( sharegpt = self.use_sharegpt )
         if len( self.chat_history ) == 0:
             prompt = self._build_system_prompt( sharegpt = self.use_sharegpt ) + prompt
+            total_tokens = 42 + question_tokens  # 42 tokens for system prompt
+        else:
+            total_tokens = 0
         self.chat_history.on_user_query( prompt )
         logger.debug( f"User {self.user_config.user_id} issues request {self.question_id}" )
         max_tokens = self._get_max_tokens( sharegpt = self.use_sharegpt )
@@ -279,7 +283,10 @@ class UserSession:
                                          max_tokens,
                                          self.user_config.ignore_eos,
                                          self._on_request_finished,
-                                         extra_headers = { "x-user-id": str( self.user_config.user_id ) }, )
+                                         extra_headers = { 
+                                             "x-user-id": str( self.user_config.user_id ),
+                                             "x-total-tokens": str(total_tokens)
+                                         }, )
         self.has_unfinished_request = True
         self.last_request_time = timestamp
 
