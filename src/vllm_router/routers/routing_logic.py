@@ -19,6 +19,7 @@ class RoutingLogic( str, enum.Enum ):
     SESSION_BASED = "session"
     LEAST_LOADED = "llq"
     CUSTOM_LOGIC = "custom"
+    HRA = "hra"
 
 
 class RoutingInterface( metaclass = SingletonABCMeta ):
@@ -210,6 +211,185 @@ class LeastLoadedRouter( RoutingInterface ):
         return ret
 
 
+# ---------------------------------------------------------------------------
+# Head-Room Admission (HRA) Router
+# ---------------------------------------------------------------------------
+
+import asyncio
+import inspect
+import time
+from dataclasses import dataclass, field
+from math import ceil
+
+from vllm_router.stats.request_stats import (
+    BLOCK_SIZE,
+    TOTAL_NUMBER_OF_BLOCKS,
+    DECODE_TO_PREFILL_RATIO,
+    SAFETY_FRACTION,
+    get_request_stats_monitor,
+)
+
+
+@dataclass(order=True)
+class _QueuedRequest:
+    """Internal helper structure for queued admission-controlled requests."""
+
+    sort_index: int = field(init=False, repr=False)
+    prefill_tokens: int
+    arrived_at: float
+    request: Request
+    endpoints: List[EndpointInfo]
+    future: asyncio.Future
+
+    def __post_init__(self):
+        # Sorting priority: by prefill tokens, then FIFO arrival time.
+        self.sort_index = (self.prefill_tokens, self.arrived_at)
+
+
+class HRARouter(RoutingInterface):
+    """Memory-aware router that implements Head-Room Admission control (HRA).
+
+    The router maintains an internal queue for requests that cannot be
+    immediately admitted to any backend replica.  When memory becomes
+    available (detected via `on_request_complete`) the queued requests are
+    re-evaluated.
+    """
+
+    def __init__(self):
+        if hasattr(self, "_initialized"):
+            return
+
+        self._queue: list[_QueuedRequest] = []
+        self._lock = asyncio.Lock()
+        self._initialized = True
+
+    # ---------------------------------------------------------------------
+    # Public API expected by the router core
+    # ---------------------------------------------------------------------
+
+    async def route_request(
+        self,
+        endpoints: List[EndpointInfo],
+        engine_stats: Dict[str, EngineStats],  # Unused but kept for interface
+        request_stats: Dict[str, RequestStats],  # Unused but kept for interface
+        request: Request,
+    ) -> str:
+        """Either returns a backend URL immediately or waits until admission."""
+
+        # Extract (optional) prefill-token hint; default to 0 if missing.
+        prefill_tokens_hdr = request.headers.get("x-prefill-tokens", "0")
+        try:
+            prefill_tokens = int(prefill_tokens_hdr)
+        except ValueError:
+            prefill_tokens = 0
+
+        future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+        async with self._lock:
+            queued_req = _QueuedRequest(
+                prefill_tokens=prefill_tokens,
+                arrived_at=time.time(),
+                request=request,
+                endpoints=endpoints,
+                future=future,
+            )
+            self._queue.append(queued_req)
+            # Keep queue ordered according to SJF (prefill tokens, then FIFO).
+            self._queue.sort()
+            self._try_schedule_locked()
+
+        # Wait until a backend URL is selected.
+        backend_url = await future
+        return backend_url
+
+    async def on_request_complete(self, engine_url: str):
+        """Hook called when a request finishes on *engine_url*.
+
+        We re-run scheduling to see if queued requests can now be admitted.
+        """
+
+        async with self._lock:
+            # We do not need the *engine_url* explicitly here, but keeping the
+            # signature future-proof (could be used for smarter triggers).
+            self._try_schedule_locked()
+
+    # ------------------------------------------------------------------
+    # Internal helpers (callers must hold self._lock)
+    # ------------------------------------------------------------------
+
+    def _try_schedule_locked(self):
+        if not self._queue:
+            return
+
+        monitor = get_request_stats_monitor()
+        current_time = time.time()
+        req_stats_snapshot = monitor.get_request_stats(current_time)
+
+        # Pre-compute per-replica values that will be updated speculatively.
+        replica_urls = {
+            url for qr in self._queue for url in (ep.url for ep in qr.endpoints)
+        }
+
+        allocated_blocks: Dict[str, int] = {
+            url: monitor.estimate_allocated_blocks(url) for url in replica_urls
+        }
+        pending_reserved_blocks: Dict[str, int] = {
+            url: monitor.estimate_pending_reserved_blocks(url)
+            for url in replica_urls
+        }
+        queue_lengths: Dict[str, int] = {
+            url: (
+                req_stats_snapshot[url].in_prefill_requests
+                + req_stats_snapshot[url].in_decoding_requests
+            )
+            if url in req_stats_snapshot
+            else 0
+            for url in replica_urls
+        }
+
+        min_free_blocks = int(TOTAL_NUMBER_OF_BLOCKS * SAFETY_FRACTION)
+
+        idx = 0
+        while idx < len(self._queue):
+            qr = self._queue[idx]
+
+            # Calculate pessimistic block demand for this request.
+            req_blocks = ceil(
+                qr.prefill_tokens * (1 + DECODE_TO_PREFILL_RATIO) / BLOCK_SIZE
+            )
+
+            admissible: list[str] = []
+            for ep in qr.endpoints:
+                url = ep.url
+                projected_usage = allocated_blocks[url] + pending_reserved_blocks[url] + req_blocks
+                free_after = TOTAL_NUMBER_OF_BLOCKS - projected_usage
+                if free_after >= min_free_blocks:
+                    admissible.append(url)
+
+            if not admissible:
+                # Oldest unschedulable request blocks younger ones to preserve
+                # fairness; stop here.
+                break
+
+            # Choose replica with least queue len.
+            target_url = min(
+                admissible,
+                key=lambda u: queue_lengths[u],
+            )
+
+            # Commit placement: pop from queue, set future result, update local
+            # projections so subsequent iterations see the effect.
+            qr.future.set_result(target_url)
+            self._queue.pop(idx)
+
+            pending_reserved_blocks[target_url] += req_blocks
+            queue_lengths[target_url] += 1
+            # Do *not* increment idx – we just removed the current element.
+
+        # Done; any remaining queued requests stay.
+
+
+
 class CustomRouter( RoutingInterface ):
 
     def __init__( self ):
@@ -276,6 +456,9 @@ def initialize_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) -> 
     elif routing_logic == RoutingLogic.LEAST_LOADED:
         logger.info( f"Initializing LLQ routing logic" )
         return LeastLoadedRouter( )
+    elif routing_logic == RoutingLogic.HRA:
+        logger.info("Initializing HRA routing logic")
+        return HRARouter()
     elif routing_logic == RoutingLogic.CUSTOM_LOGIC:
         logger.info( f"Initializing custom routing logic" )
         return CustomRouter( )
@@ -285,7 +468,7 @@ def initialize_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) -> 
 
 def reconfigure_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) -> RoutingInterface:
     # Remove the existing routers from the singleton registry
-    for cls in (SessionRouter, RoundRobinRouter, LeastLoadedRouter, CustomRouter):
+    for cls in (SessionRouter, RoundRobinRouter, LeastLoadedRouter, HRARouter, CustomRouter):
         if cls in SingletonABCMeta._instances:
             del SingletonABCMeta._instances[ cls ]
     return initialize_routing_logic( routing_logic, *args, **kwargs )
@@ -293,7 +476,7 @@ def reconfigure_routing_logic( routing_logic: RoutingLogic, *args, **kwargs ) ->
 
 def get_routing_logic( ) -> RoutingInterface:
     # Look up in our singleton registry which router (if any) has been created.
-    for cls in (SessionRouter, RoundRobinRouter, LeastLoadedRouter, CustomRouter):
+    for cls in (SessionRouter, RoundRobinRouter, LeastLoadedRouter, HRARouter, CustomRouter):
         if cls in SingletonABCMeta._instances:
             return cls( )
     raise ValueError( "The global router has not been initialized" )

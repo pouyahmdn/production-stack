@@ -3,6 +3,8 @@
 import json
 import time
 import uuid
+import asyncio
+import inspect
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -112,6 +114,14 @@ async def process_request(
         request.app.state.request_stats_monitor.on_request_complete(
             backend_url, request_id, time.time()
         )
+
+        # Inform routing logic (e.g., HRA) that a request has finished so it
+        # can attempt to admit queued ones.
+        router_obj = request.app.state.router
+        if hasattr(router_obj, "on_request_complete"):
+            complete_hook = router_obj.on_request_complete(backend_url)
+            if inspect.isawaitable(complete_hook):
+                await complete_hook
     finally:
         # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
         request.app.state.request_stats_monitor.on_request_kill(
@@ -185,9 +195,16 @@ async def route_general_request(request: Request, endpoint: str):
         )
 
     logger.debug(f"Routing request {request_id} for model: {requested_model}")
-    server_url = request.app.state.router.route_request(
+
+    route_result = request.app.state.router.route_request(
         endpoints, engine_stats, request_stats, request
     )
+
+    # The routing logic may return a coroutine / Future (e.g., HRA) or a plain string.
+    if inspect.isawaitable(route_result):
+        server_url = await route_result
+    else:
+        server_url = route_result
     curr_time = time.time()
     logger.info(
         f"Routing request {request_id} to {server_url} at {curr_time}, process time = {curr_time - in_router_time:.4f}"
