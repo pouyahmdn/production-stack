@@ -66,7 +66,8 @@ async def process_request(
     total_len = 0
     start_time = time.time()
     request.app.state.request_stats_monitor.on_new_request(
-        backend_url, request_id, start_time
+        backend_url, request_id, start_time,
+        prefill_tokens=int(request.headers.get("x-prefill-tokens", "0"))
     )
     # Check if this is a streaming request
     is_streaming = False

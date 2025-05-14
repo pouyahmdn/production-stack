@@ -1,8 +1,13 @@
 from collections import deque
 from dataclasses import dataclass
 from typing import Deque, Dict, Tuple
+import math
 
 from vllm_router.log import init_logger
+
+# Constants for vLLM engine configuration
+BLOCK_SIZE = 16  # Block size of vLLM engines
+TOTAL_NUMBER_OF_BLOCKS = 2240  # Total number of blocks available on vLLM engines with A10 GPUs
 
 logger = init_logger( __name__ )
 
@@ -119,6 +124,8 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.finished_requests: Dict[ str, int ] = { }
         # Track tokens for each request in decoding: engine_url -> {request_id -> token_count}
         self.request_decode_tokens: Dict[ str, Dict[ str, int ] ] = { }
+        # Track prefill tokens for each request: engine_url -> {request_id -> token_count}
+        self.request_prefill_tokens: Dict[ str, Dict[ str, int ] ] = { }
 
         # Counter for swapped requests
         self.swapped_requests: Dict[ str, int ] = { }
@@ -126,7 +133,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.first_query_time: float = None
         self._initialized = True
 
-    def on_new_request( self, engine_url: str, request_id: str, timestamp: float ):
+    def on_new_request( self, engine_url: str, request_id: str, timestamp: float, prefill_tokens: int = 0 ):
         """
         Tell the monitor that a new request has been created.
 
@@ -134,6 +141,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             engine_url: The URL of the serving engine
             request_id: The global request ID
             timestamp: the timestamp when the request was created
+            prefill_tokens: number of tokens in the prefill phase
         """
         self.request_start_time[ (engine_url, request_id) ] = timestamp
 
@@ -144,6 +152,12 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         if engine_url not in self.qps_monitors:
             self.qps_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
         self.qps_monitors[ engine_url ].update( timestamp, 1 )
+
+        # Initialize prefill tokens tracking
+        if engine_url not in self.request_prefill_tokens:
+            self.request_prefill_tokens[engine_url] = {}
+        self.request_prefill_tokens[engine_url][request_id] = prefill_tokens
+        logger.debug(f"Initialized prefill token count for request {request_id} on {engine_url}: {prefill_tokens} tokens")
 
         if self.first_query_time is None:
             self.first_query_time = timestamp
@@ -163,6 +177,12 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             # Clean up empty engine dict if no more requests
             if not self.request_decode_tokens[engine_url]:
                 del self.request_decode_tokens[engine_url]
+        if engine_url in self.request_prefill_tokens and request_id in self.request_prefill_tokens[engine_url]:
+            logger.debug( f"Kill request for ({engine_url}, {request_id}) removed request_prefill_tokens entry..." )
+            del self.request_prefill_tokens[engine_url][request_id]
+            # Clean up empty engine dict if no more requests
+            if not self.request_prefill_tokens[engine_url]:
+                del self.request_prefill_tokens[engine_url]
 
     def on_request_response( self, engine_url: str, request_id: str, timestamp: float, is_first_token: bool = True):
         """
@@ -237,13 +257,20 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         dec_lat = timestamp - self.first_token_time[ (engine_url, request_id) ]
         self.decoding_length_monitors[ engine_url ].update( timestamp, dec_lat )
 
-        # Log final token count before cleanup
+        # Log final token counts before cleanup
         if engine_url in self.request_decode_tokens and request_id in self.request_decode_tokens[engine_url]:
-            logger.info(f"Request {request_id} on {engine_url} completed with {self.request_decode_tokens[engine_url][request_id]} tokens")
+            logger.info(f"Request {request_id} on {engine_url} completed with {self.request_decode_tokens[engine_url][request_id]} decode tokens")
             del self.request_decode_tokens[engine_url][request_id]
             # Clean up empty engine dict if no more requests
             if not self.request_decode_tokens[engine_url]:
                 del self.request_decode_tokens[engine_url]
+
+        if engine_url in self.request_prefill_tokens and request_id in self.request_prefill_tokens[engine_url]:
+            logger.info(f"Request {request_id} on {engine_url} completed with {self.request_prefill_tokens[engine_url][request_id]} prefill tokens")
+            del self.request_prefill_tokens[engine_url][request_id]
+            # Clean up empty engine dict if no more requests
+            if not self.request_prefill_tokens[engine_url]:
+                del self.request_prefill_tokens[engine_url]
 
         del self.request_start_time[(engine_url, request_id)]
         del self.first_token_time[ (engine_url, request_id) ]
@@ -335,19 +362,50 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
                 num_swapped_requests = swapped, )
         return ret
 
-    def get_total_decode_tokens(self, engine_url: str) -> int:
+    def estimate_allocated_blocks(self, engine_url: str) -> int:
         """
-        Get the total number of tokens currently being decoded for a specific engine.
+        Estimate the total number of blocks currently allocated for all requests in decoding phase.
+        For each request, total tokens = prefill_tokens + decode_tokens
+        Allocated blocks = ceil(total_tokens / BLOCK_SIZE)
 
         Args:
             engine_url: The URL of the serving engine
 
         Returns:
-            The total number of tokens being decoded across all requests for this engine
+            The total number of blocks allocated across all requests in decoding phase for this engine
         """
-        if engine_url not in self.request_decode_tokens:
+        if engine_url not in self.request_decode_tokens or engine_url not in self.in_decoding_requests_ids:
             return 0
-        return sum(self.request_decode_tokens[engine_url].values())
+        
+        total_blocks = 0
+        
+        # Iterate over requests in request_decode_tokens and verify they're in decoding phase
+        for request_id, decode_tokens in self.request_decode_tokens[engine_url].items():
+            assert request_id in self.in_decoding_requests_ids[engine_url], \
+                f"Request {request_id} has decode tokens but is not in decoding phase"
+                
+            # Get prefill tokens
+            prefill_tokens = self.request_prefill_tokens.get(engine_url, {}).get(request_id, 0)
+            # Calculate total tokens and blocks
+            total_tokens = prefill_tokens + decode_tokens
+            blocks = math.ceil(total_tokens / BLOCK_SIZE)
+            total_blocks += blocks
+            
+        return total_blocks
+
+    def get_total_prefill_tokens(self, engine_url: str) -> int:
+        """
+        Get the total number of prefill tokens currently being processed for a specific engine.
+
+        Args:
+            engine_url: The URL of the serving engine
+
+        Returns:
+            The total number of prefill tokens across all requests for this engine
+        """
+        if engine_url not in self.request_prefill_tokens:
+            return 0
+        return sum(self.request_prefill_tokens[engine_url].values())
 
 def initialize_request_stats_monitor( sliding_window_size: float ):
     return RequestStatsMonitor( sliding_window_size )
