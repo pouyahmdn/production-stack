@@ -8,6 +8,8 @@ from vllm_router.log import init_logger
 # Constants for vLLM engine configuration
 BLOCK_SIZE = 16  # Block size of vLLM engines
 TOTAL_NUMBER_OF_BLOCKS = 2240  # Total number of blocks available on vLLM engines with A10 GPUs
+DECODE_TO_PREFILL_RATIO = 0.6   # avg decode/prompt tokens
+SAFETY_FRACTION = 0.03  # keep last 3 % blocks free
 
 logger = init_logger( __name__ )
 
@@ -393,19 +395,34 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             
         return total_blocks
 
-    def get_total_prefill_tokens(self, engine_url: str) -> int:
+    def estimate_pending_reserved_blocks(self, engine_url: str) -> int:
         """
-        Get the total number of prefill tokens currently being processed for a specific engine.
-
+        Estimate the number of blocks that need to be reserved for pending requests in prefill phase.
+        For each pending request, we reserve blocks based on:
+        - Prefill tokens
+        - Expected decode tokens (using DECODE_TO_PREFILL_RATIO)
+        
         Args:
             engine_url: The URL of the serving engine
-
+            
         Returns:
-            The total number of prefill tokens across all requests for this engine
+            The total number of blocks that need to be reserved for pending requests
         """
-        if engine_url not in self.request_prefill_tokens:
+        if engine_url not in self.in_prefill_requests_ids:
             return 0
-        return sum(self.request_prefill_tokens[engine_url].values())
+            
+        # Sum all prefill tokens for pending requests
+        total_prefill_tokens = sum(
+            self.request_prefill_tokens.get(engine_url, {}).get(request_id, 0)
+            for request_id in self.in_prefill_requests_ids[engine_url]
+        )
+        
+        # Calculate total expected tokens including decode phase
+        total_expected_tokens = total_prefill_tokens * (1 + DECODE_TO_PREFILL_RATIO)
+        
+        # Calculate total blocks needed
+        return math.ceil(total_expected_tokens / BLOCK_SIZE)
+
 
 def initialize_request_stats_monitor( sliding_window_size: float ):
     return RequestStatsMonitor( sliding_window_size )
