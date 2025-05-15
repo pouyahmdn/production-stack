@@ -285,7 +285,7 @@ class UserSession:
                                          self._on_request_finished,
                                          extra_headers = { 
                                              "x-user-id": str( self.user_config.user_id ),
-                                             "x-total-tokens": str(total_tokens)
+                                             "x-prefill-tokens": str(total_tokens)
                                          }, )
         self.has_unfinished_request = True
         self.last_request_time = timestamp
