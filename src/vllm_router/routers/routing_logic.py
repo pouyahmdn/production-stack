@@ -388,7 +388,7 @@ class HRARouter(RoutingInterface):
             # Choose replica with least queue len.
             target_url = min(
                 admissible,
-                key=lambda u: queue_lengths[u],
+                key=lambda u: (queue_lengths[u], allocated_blocks[u] + pending_reserved_blocks[u])
             )
 
             monitor.on_request_routed(target_url, qr.request_id, qr.prefill_tokens)
