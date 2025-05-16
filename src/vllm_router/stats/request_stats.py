@@ -7,7 +7,7 @@ from vllm_router.log import init_logger
 
 # Constants for vLLM engine configuration
 BLOCK_SIZE = 16  # Block size of vLLM engines
-TOTAL_NUMBER_OF_BLOCKS = 2240  # Total number of blocks available on vLLM engines with A10 GPUs
+TOTAL_NUMBER_OF_BLOCKS = 2756  # Total number of blocks available on vLLM engines with A10 GPUs
 DECODE_TO_PREFILL_RATIO = 0.6   # avg decode/prompt tokens
 SAFETY_FRACTION = 0.03  # keep last 3 % blocks free
 
