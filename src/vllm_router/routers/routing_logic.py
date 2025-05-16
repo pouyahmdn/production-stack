@@ -28,7 +28,9 @@ class RoutingInterface( metaclass = SingletonABCMeta ):
                        endpoints: List[ EndpointInfo ],
                        engine_stats: Dict[ str, EngineStats ],
                        request_stats: Dict[ str, RequestStats ],
-                       request: Request, ) -> str:
+                       request: Request,
+                       request_id: str,
+                       num_prefill_tokens: int ) -> str:
         """
         Route the request to the appropriate engine URL
 
@@ -39,6 +41,8 @@ class RoutingInterface( metaclass = SingletonABCMeta ):
             request_stats (Dict[str, RequestStats]): The request stats
                 indicating the request-level performance of each engine
             request (Request): The incoming request
+            request_id (str): The ID of the request
+            num_prefill_tokens (int): Number of prefill tokens in the request
         """
         raise NotImplementedError
 
@@ -56,7 +60,9 @@ class RoundRobinRouter( RoutingInterface ):
                        endpoints: List[ EndpointInfo ],
                        engine_stats: Dict[ str, EngineStats ],
                        request_stats: Dict[ str, RequestStats ],
-                       request: Request, ) -> str:
+                       request: Request,
+                       request_id: str,
+                       num_prefill_tokens: int ) -> str:
         """
         Route the request to the appropriate engine URL using a simple
         round-robin algorithm
@@ -68,10 +74,14 @@ class RoundRobinRouter( RoutingInterface ):
             request_stats (Dict[str, RequestStats]): The request stats
                 indicating the request-level performance of each engine
             request (Request): The incoming request
+            request_id (str): The ID of the request
+            num_prefill_tokens (int): Number of prefill tokens in the request
         """
         len_engines = len( endpoints )
         chosen = sorted( endpoints, key = lambda e: e.url )[ self.req_id % len_engines ]
         self.req_id += 1
+        monitor = get_request_stats_monitor()
+        monitor.on_request_routed(chosen.url, request_id, num_prefill_tokens)
         return chosen.url
 
 
@@ -136,7 +146,9 @@ class SessionRouter( RoutingInterface ):
                        endpoints: List[ EndpointInfo ],
                        engine_stats: Dict[ str, EngineStats ],
                        request_stats: Dict[ str, RequestStats ],
-                       request: Request, ) -> str:
+                       request: Request,
+                       request_id: str,
+                       num_prefill_tokens: int ) -> str:
         """
         Route the request to the appropriate engine URL by the 'session id' in
         the request headers.
@@ -150,6 +162,8 @@ class SessionRouter( RoutingInterface ):
             request_stats (Dict[str, RequestStats]): The request stats
                 indicating the request-level performance of each engine
             request (Request): The incoming request
+            request_id (str): The ID of the request
+            num_prefill_tokens (int): Number of prefill tokens in the request
         """
         session_id = request.headers.get( self.session_key, None )
         logger.debug( f"Got session id: {session_id}" )
@@ -164,6 +178,8 @@ class SessionRouter( RoutingInterface ):
             # Use the hash ring to get the endpoint for the session ID
             url = self.hash_ring.get_node( session_id )
 
+        monitor = get_request_stats_monitor()
+        monitor.on_request_routed(url, request_id, num_prefill_tokens)
         return url
 
 
@@ -178,7 +194,9 @@ class LeastLoadedRouter( RoutingInterface ):
                        endpoints: List[ EndpointInfo ],
                        engine_stats: Dict[ str, EngineStats ],
                        request_stats: Dict[ str, RequestStats ],
-                       request: Request, ) -> str:
+                       request: Request,
+                       request_id: str,
+                       num_prefill_tokens: int ) -> str:
         """
         Route the request to the appropriate engine URL
 
@@ -189,6 +207,8 @@ class LeastLoadedRouter( RoutingInterface ):
             request_stats (Dict[str, RequestStats]): The request stats
                 indicating the request-level performance of each engine
             request (Request): The incoming request
+            request_id (str): The ID of the request
+            num_prefill_tokens (int): Number of prefill tokens in the request
         """
 
         def estimate_work( url: str ) -> float:
@@ -208,6 +228,8 @@ class LeastLoadedRouter( RoutingInterface ):
             if endpoint_work < lowest_work:
                 lowest_work = endpoint_work
                 ret = info.url
+        monitor = get_request_stats_monitor()
+        monitor.on_request_routed(ret, request_id, num_prefill_tokens)
         return ret
 
 
@@ -240,6 +262,7 @@ class _QueuedRequest:
     request: Request
     endpoints: List[EndpointInfo]
     future: asyncio.Future
+    request_id: str
 
     def __post_init__(self):
         # Sorting priority: by prefill tokens, then FIFO arrival time.
@@ -273,25 +296,21 @@ class HRARouter(RoutingInterface):
         engine_stats: Dict[str, EngineStats],  # Unused but kept for interface
         request_stats: Dict[str, RequestStats],  # Unused but kept for interface
         request: Request,
+        request_id: str,
+        num_prefill_tokens: int,
     ) -> str:
         """Either returns a backend URL immediately or waits until admission."""
-
-        # Extract (optional) prefill-token hint; default to 0 if missing.
-        prefill_tokens_hdr = request.headers.get("x-prefill-tokens", "0")
-        try:
-            prefill_tokens = int(prefill_tokens_hdr)
-        except ValueError:
-            prefill_tokens = 0
 
         future: asyncio.Future = asyncio.get_event_loop().create_future()
 
         async with self._lock:
             queued_req = _QueuedRequest(
-                prefill_tokens=prefill_tokens,
+                prefill_tokens=num_prefill_tokens,
                 arrived_at=time.time(),
                 request=request,
                 endpoints=endpoints,
                 future=future,
+                request_id=request_id,
             )
             self._queue.append(queued_req)
             # Keep queue ordered according to SJF (prefill tokens, then FIFO).
@@ -377,6 +396,8 @@ class HRARouter(RoutingInterface):
                 key=lambda u: queue_lengths[u],
             )
 
+            monitor.on_request_routed(target_url, qr.request_id, qr.prefill_tokens)
+
             # Commit placement: pop from queue, set future result, update local
             # projections so subsequent iterations see the effect.
             qr.future.set_result(target_url)
@@ -401,7 +422,9 @@ class CustomRouter( RoutingInterface ):
                        endpoints: List[ EndpointInfo ],
                        engine_stats: Dict[ str, EngineStats ],
                        request_stats: Dict[ str, RequestStats ],
-                       request: Request, ) -> str:
+                       request: Request,
+                       request_id: str,
+                       num_prefill_tokens: int ) -> str:
         """
         Route the request to the appropriate engine URL
 
@@ -412,6 +435,8 @@ class CustomRouter( RoutingInterface ):
             request_stats (Dict[str, RequestStats]): The request stats
                 indicating the request-level performance of each engine
             request (Request): The incoming request
+            request_id (str): The ID of the request
+            num_prefill_tokens (int): Number of prefill tokens in the request
         """
 
         def estimate_work( url: str ) -> float:
@@ -442,6 +467,8 @@ class CustomRouter( RoutingInterface ):
             if endpoint_work < lowest_work:
                 lowest_work = endpoint_work
                 ret = info.url
+        monitor = get_request_stats_monitor()
+        monitor.on_request_routed(ret, request_id, num_prefill_tokens)
         return ret
 
 

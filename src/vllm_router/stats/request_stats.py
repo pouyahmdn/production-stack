@@ -115,8 +115,8 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.latency_monitors: Dict[ str, MovingAverageMonitor ] = { }
         self.decoding_length_monitors: Dict[ str, MovingAverageMonitor ] = { }
 
-        # The time when the request is coming (engine_url, request_id) -> timestamp
-        self.request_start_time: Dict[ Tuple[ str, str ], float ] = { }
+        # The time when the request is coming request_id -> timestamp
+        self.request_arrival_time: Dict[str, float] = { }
         # Record time when first token is received: (engine_url, request_id) -> timestamp
         self.first_token_time: Dict[ Tuple[ str, str ], float ] = { }
 
@@ -135,40 +135,57 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         self.first_query_time: float = None
         self._initialized = True
 
-    def on_new_request( self, engine_url: str, request_id: str, timestamp: float, prefill_tokens: int = 0 ):
+    def on_request_arrival(self, request_id: str, timestamp: float):
         """
-        Tell the monitor that a new request has been created.
+        Record the initial arrival of a request before it starts processing.
+
+        Args:
+            request_id: The global request ID
+            timestamp: the timestamp when the request arrived
+        """
+        self.request_arrival_time[request_id] = timestamp
+
+        if self.first_query_time is None:
+            self.first_query_time = timestamp
+
+    def on_request_start(self, engine_url: str, request_id: str, timestamp: float):
+        """
+        Tell the monitor that a new request has been sent to the engine.
 
         Args:
             engine_url: The URL of the serving engine
             request_id: The global request ID
-            timestamp: the timestamp when the request was created
-            prefill_tokens: number of tokens in the prefill phase
+            timestamp: the timestamp when the request was sent to the engine
         """
-        self.request_start_time[ (engine_url, request_id) ] = timestamp
-
-        if engine_url not in self.in_prefill_requests_ids:
-            self.in_prefill_requests_ids[ engine_url ] = set( )
-        self.in_prefill_requests_ids[ engine_url ].add( request_id )
 
         if engine_url not in self.qps_monitors:
-            self.qps_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
-        self.qps_monitors[ engine_url ].update( timestamp, 1 )
+            self.qps_monitors[engine_url] = MovingAverageMonitor(self.sliding_window_size)
+        self.qps_monitors[engine_url].update(timestamp, 1)
 
+    def on_request_routed(self, engine_url: str, request_id: str, prefill_tokens: int):
+        """
+        Update the prefill tokens tracking after HRA (Head-Room Admission) decision.
+
+        Args:
+            engine_url: The URL of the serving engine
+            request_id: The global request ID
+            prefill_tokens: number of tokens in the prefill phase
+        """
         # Initialize prefill tokens tracking
         if engine_url not in self.request_prefill_tokens:
             self.request_prefill_tokens[engine_url] = {}
         self.request_prefill_tokens[engine_url][request_id] = prefill_tokens
         logger.debug(f"Initialized prefill token count for request {request_id} on {engine_url}: {prefill_tokens} tokens")
 
-        if self.first_query_time is None:
-            self.first_query_time = timestamp
+        if engine_url not in self.in_prefill_requests_ids:
+            self.in_prefill_requests_ids[engine_url] = set()
+        self.in_prefill_requests_ids[engine_url].add(request_id)
 
     def on_request_kill( self, engine_url: str, request_id: str ):
-        if (engine_url, request_id) in self.request_start_time:
-            logger.debug( f"Kill request for ({engine_url}, {request_id}) removed request_start_time entry..." )
+        if request_id in self.request_arrival_time:
+            logger.debug( f"Kill request for {request_id} removed request_arrival_time entry..." )
             self.in_prefill_requests_ids[ engine_url ].discard( request_id )
-            del self.request_start_time[(engine_url, request_id)]
+            del self.request_arrival_time[request_id]
         if (engine_url, request_id) in self.first_token_time:
             logger.debug( f"Kill request for ({engine_url}, {request_id}) removed first_token_time entry..." )
             self.in_decoding_requests_ids[ engine_url ].discard( request_id )
@@ -205,8 +222,8 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         if not is_first_token:
             return
         
-        if (engine_url, request_id) not in self.request_start_time:
-            logger.debug( f"Something weird happened; we needed ({engine_url}, {request_id}) in request_start_time but it wasn't there" )
+        if request_id not in self.request_arrival_time:
+            logger.debug( f"Something weird happened; we needed {request_id} in request_arrival_time but it wasn't there" )
             self.on_request_kill(engine_url, request_id)
             return
 
@@ -222,7 +239,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         # Update TTFT as time from request start to first token
         if engine_url not in self.ttft_monitors:
             self.ttft_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
-        ttft = timestamp - self.request_start_time[ (engine_url, request_id) ]
+        ttft = timestamp - self.request_arrival_time[request_id]
         self.ttft_monitors[ engine_url ].update( timestamp, ttft )
 
     def on_request_complete( self, engine_url: str, request_id: str, timestamp: float ):
@@ -234,8 +251,8 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             request_id: The global request ID
             timestamp: The timestamp when the request was completed
         """
-        if (engine_url, request_id) not in self.request_start_time:
-            logger.debug( f"Something weird happened; we needed ({engine_url}, {request_id}) in request_start_time but it wasn't there" )
+        if request_id not in self.request_arrival_time:
+            logger.debug( f"Something weird happened; we needed {request_id} in request_arrival_time but it wasn't there" )
             self.on_request_kill(engine_url, request_id)
             return
         if (engine_url, request_id) not in self.first_token_time:
@@ -251,7 +268,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
 
         if engine_url not in self.latency_monitors:
             self.latency_monitors[ engine_url ] = MovingAverageMonitor( self.sliding_window_size )
-        lat = timestamp - self.request_start_time[ (engine_url, request_id) ]
+        lat = timestamp - self.request_arrival_time[request_id]
         self.latency_monitors[ engine_url ].update( timestamp, lat )
 
         if engine_url not in self.decoding_length_monitors:
@@ -274,7 +291,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             if not self.request_prefill_tokens[engine_url]:
                 del self.request_prefill_tokens[engine_url]
 
-        del self.request_start_time[(engine_url, request_id)]
+        del self.request_arrival_time[request_id]
         del self.first_token_time[ (engine_url, request_id) ]
 
     def on_request_swapped( self, engine_url: str, request_id: str, timestamp: float ):
@@ -305,7 +322,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             finished in the sliding window.
         """
         ret = { }
-        urls = set( self.in_prefill_requests_ids.keys( ) ).union( set( self.in_prefill_requests_ids.keys( ) ) )
+        urls = set( self.in_prefill_requests_ids.keys( ) ).union( set( self.in_decoding_requests_ids.keys( ) ) )
         for engine_url in urls:
             if engine_url not in self.qps_monitors:
                 qps = -1
@@ -325,7 +342,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             in_decoding = len(self.in_decoding_requests_ids.get( engine_url, set( ) ))
             finished = self.finished_requests.get( engine_url, 0 )
 
-            in_prefill_ts_s = [ current_time - self.request_start_time[ (engine_url, r) ] for r in
+            in_prefill_ts_s = [ current_time - self.request_arrival_time[r] for r in
                                 self.in_prefill_requests_ids.get( engine_url, set( ) ) ]
             in_decode_ts_s = [ current_time - self.first_token_time[ (engine_url, r) ] for r in
                                self.in_decoding_requests_ids.get( engine_url, set( ) ) ]
@@ -408,13 +425,12 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         Returns:
             The total number of blocks that need to be reserved for pending requests
         """
-        if engine_url not in self.in_prefill_requests_ids:
+        if engine_url not in self.request_prefill_tokens:
             return 0
             
         # Sum all prefill tokens for pending requests
         total_prefill_tokens = sum(
-            self.request_prefill_tokens.get(engine_url, {}).get(request_id, 0)
-            for request_id in self.in_prefill_requests_ids[engine_url]
+            tokens for tokens in self.request_prefill_tokens[engine_url].values()
         )
         
         # Calculate total expected tokens including decode phase

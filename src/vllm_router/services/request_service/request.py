@@ -67,9 +67,8 @@ async def process_request(
     first_token = False
     total_len = 0
     start_time = time.time()
-    request.app.state.request_stats_monitor.on_new_request(
+    request.app.state.request_stats_monitor.on_request_start(
         backend_url, request_id, start_time,
-        prefill_tokens=int(request.headers.get("x-prefill-tokens", "0"))
     )
     # Check if this is a streaming request
     is_streaming = False
@@ -193,11 +192,21 @@ async def route_general_request(request: Request, endpoint: str):
         return JSONResponse(
             status_code=400, content={"error": f"Model {requested_model} not found."}
         )
+    
+    arrival_time = time.time()
+    request.app.state.request_stats_monitor.on_request_arrival(request_id, arrival_time)
 
     logger.debug(f"Routing request {request_id} for model: {requested_model}")
 
+    # Extract (optional) prefill-token hint; default to 0 if missing.
+    prefill_tokens_hdr = request.headers.get("x-prefill-tokens", "0")
+    try:
+        num_prefill_tokens = int(prefill_tokens_hdr)
+    except ValueError:
+        num_prefill_tokens = 0
+
     route_result = request.app.state.router.route_request(
-        endpoints, engine_stats, request_stats, request
+        endpoints, engine_stats, request_stats, request, request_id, num_prefill_tokens
     )
 
     # The routing logic may return a coroutine / Future (e.g., HRA) or a plain string.
