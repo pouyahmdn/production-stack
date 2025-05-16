@@ -283,7 +283,6 @@ class HRARouter(RoutingInterface):
             return
 
         self._queue: list[_QueuedRequest] = []
-        self._lock = asyncio.Lock()
         self._initialized = True
 
     # ---------------------------------------------------------------------
@@ -303,19 +302,18 @@ class HRARouter(RoutingInterface):
 
         future: asyncio.Future = asyncio.get_event_loop().create_future()
 
-        async with self._lock:
-            queued_req = _QueuedRequest(
-                prefill_tokens=num_prefill_tokens,
-                arrived_at=time.time(),
-                request=request,
-                endpoints=endpoints,
-                future=future,
-                request_id=request_id,
-            )
-            self._queue.append(queued_req)
-            # Keep queue ordered according to SJF (prefill tokens, then FIFO).
-            self._queue.sort()
-            self._try_schedule_locked()
+        queued_req = _QueuedRequest(
+            prefill_tokens=num_prefill_tokens,
+            arrived_at=time.time(),
+            request=request,
+            endpoints=endpoints,
+            future=future,
+            request_id=request_id,
+        )
+        self._queue.append(queued_req)
+        # Keep queue ordered according to SJF (prefill tokens, then FIFO).
+        self._queue.sort()
+        self._try_schedule()
 
         # Wait until a backend URL is selected.
         backend_url = await future
@@ -327,16 +325,15 @@ class HRARouter(RoutingInterface):
         We re-run scheduling to see if queued requests can now be admitted.
         """
 
-        async with self._lock:
-            # We do not need the *engine_url* explicitly here, but keeping the
-            # signature future-proof (could be used for smarter triggers).
-            self._try_schedule_locked()
+        # We do not need the *engine_url* explicitly here, but keeping the
+        # signature future-proof (could be used for smarter triggers).
+        self._try_schedule()
 
     # ------------------------------------------------------------------
     # Internal helpers (callers must hold self._lock)
     # ------------------------------------------------------------------
 
-    def _try_schedule_locked(self):
+    def _try_schedule(self):
         if not self._queue:
             return
 
