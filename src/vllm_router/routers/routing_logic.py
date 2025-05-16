@@ -289,7 +289,7 @@ class HRARouter(RoutingInterface):
     # Public API expected by the router core
     # ---------------------------------------------------------------------
 
-    async def route_request(
+    def route_request(
         self,
         endpoints: List[EndpointInfo],
         engine_stats: Dict[str, EngineStats],  # Unused but kept for interface
@@ -315,11 +315,9 @@ class HRARouter(RoutingInterface):
         self._queue.sort()
         self._try_schedule()
 
-        # Wait until a backend URL is selected.
-        backend_url = await future
-        return backend_url
+        return future
 
-    async def on_request_complete(self, engine_url: str):
+    def on_request_complete(self, engine_url: str):
         """Hook called when a request finishes on *engine_url*.
 
         We re-run scheduling to see if queued requests can now be admitted.

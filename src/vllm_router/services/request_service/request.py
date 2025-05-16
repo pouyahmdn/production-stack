@@ -118,9 +118,7 @@ async def process_request(
         # can attempt to admit queued ones.
         router_obj = request.app.state.router
         if hasattr(router_obj, "on_request_complete"):
-            complete_hook = router_obj.on_request_complete(backend_url)
-            if inspect.isawaitable(complete_hook):
-                await complete_hook
+            router_obj.on_request_complete(backend_url)
     finally:
         # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
         request.app.state.request_stats_monitor.on_request_kill(
