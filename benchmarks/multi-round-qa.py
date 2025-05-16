@@ -147,7 +147,8 @@ class RequestExecutor:
                                                               max_tokens = max_tokens,
                                                               stream_options = { "include_usage": True },
                                                               extra_headers = extra_headers,
-                                                              extra_body = { 'ignore_eos': ignore_eos } )
+                                                              extra_body = { 'ignore_eos': ignore_eos },
+                                                              timeout = 1000000000)
 
         itl = [ ]
         first_token_time = None

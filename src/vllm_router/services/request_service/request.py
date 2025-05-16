@@ -113,17 +113,15 @@ async def process_request(
         request.app.state.request_stats_monitor.on_request_complete(
             backend_url, request_id, time.time()
         )
-
-        # Inform routing logic (e.g., HRA) that a request has finished so it
-        # can attempt to admit queued ones.
-        router_obj = request.app.state.router
-        if hasattr(router_obj, "on_request_complete"):
-            router_obj.on_request_complete(backend_url)
     finally:
         # on_request_kill does nothing if the request is already completed, but cleans up if it was interrupted
         request.app.state.request_stats_monitor.on_request_kill(
             backend_url, request_id
         )
+        # Inform routing logic (e.g., HRA) that a request has finished so it
+        # can attempt to admit queued ones.
+        if hasattr(request.app.state.router, "on_request_complete"):
+            request.app.state.router.on_request_complete(backend_url)
 
     # if debug_request:
     #    logger.debug(f"Finished the request with request id: {debug_request.headers.get('x-request-id', None)} at {time.time()}")
@@ -191,42 +189,51 @@ async def route_general_request(request: Request, endpoint: str):
             status_code=400, content={"error": f"Model {requested_model} not found."}
         )
     
-    arrival_time = time.time()
-    request.app.state.request_stats_monitor.on_request_arrival(request_id, arrival_time)
-
-    logger.debug(f"Routing request {request_id} for model: {requested_model}")
-
-    # Extract (optional) prefill-token hint; default to 0 if missing.
-    prefill_tokens_hdr = request.headers.get("x-prefill-tokens", "0")
     try:
-        num_prefill_tokens = int(prefill_tokens_hdr)
-    except ValueError:
-        num_prefill_tokens = 0
+        arrival_time = time.time()
+        request.app.state.request_stats_monitor.on_request_arrival(request_id, arrival_time)
 
-    route_result = request.app.state.router.route_request(
-        endpoints, engine_stats, request_stats, request, request_id, num_prefill_tokens
-    )
+        logger.debug(f"Routing request {request_id} for model: {requested_model}")
 
-    # The routing logic may return a coroutine / Future (e.g., HRA) or a plain string.
-    if inspect.isawaitable(route_result):
-        server_url = await route_result
-    else:
-        server_url = route_result
-    curr_time = time.time()
-    logger.info(
-        f"Routing request {request_id} to {server_url} at {curr_time}, process time = {curr_time - in_router_time:.4f}"
-    )
-    stream_generator = process_request(
-        request,
-        request_body,
-        server_url,
-        request_id,
-        endpoint=endpoint,
-    )
-    headers, status_code = await anext(stream_generator)
-    return StreamingResponse(
-        stream_generator,
-        status_code=status_code,
-        headers={key: value for key, value in headers.items()},
-        media_type="text/event-stream",
-    )
+        # Extract (optional) prefill-token hint; default to 0 if missing.
+        prefill_tokens_hdr = request.headers.get("x-prefill-tokens", "0")
+        try:
+            num_prefill_tokens = int(prefill_tokens_hdr)
+        except ValueError:
+            num_prefill_tokens = 0
+
+        route_result = request.app.state.router.route_request(
+            endpoints, engine_stats, request_stats, request, request_id, num_prefill_tokens
+        )
+
+        # The routing logic may return a coroutine / Future (e.g., HRA) or a plain string.
+        if inspect.isawaitable(route_result):
+            server_url = await route_result
+        else:
+            server_url = route_result
+        curr_time = time.time()
+        logger.info(
+            f"Routing request {request_id} to {server_url} at {curr_time}, process time = {curr_time - in_router_time:.4f}"
+        )
+        stream_generator = process_request(
+            request,
+            request_body,
+            server_url,
+            request_id,
+            endpoint=endpoint,
+        )
+        headers, status_code = await anext(stream_generator)
+        return StreamingResponse(
+            stream_generator,
+            status_code=status_code,
+            headers={key: value for key, value in headers.items()},
+            media_type="text/event-stream",
+        )
+    except Exception as e: # TODO (arashne,pouyah): why didn't this work?!
+        logger.critical(f"Error in route_general_request: {e}")
+        request.app.state.request_stats_monitor.on_request_kill(
+            server_url, request_id
+        )
+        if hasattr(request.app.state.router, "on_request_complete"):
+            request.app.state.router.on_request_complete(server_url)
+        raise e
