@@ -13,6 +13,9 @@ from vllm_router.services.metrics_service import (
     num_prefill_requests,
     num_requests_running,
     num_requests_swapped,
+    allocated_blocks,
+    pending_reserved_blocks,
+    num_free_blocks,
 )
 
 logger = init_logger(__name__)
@@ -72,6 +75,9 @@ def log_stats(app: FastAPI, interval: int = 10):
                 num_requests_running.labels(server=url).set(
                     rs.in_prefill_requests + rs.in_decoding_requests
                 )
+                allocated_blocks.labels(server=url).set(rs.allocated_blocks)
+                pending_reserved_blocks.labels(server=url).set(rs.pending_reserved_blocks)
+                num_free_blocks.labels(server=url).set(rs.num_free_blocks)
                 avg_latency.labels(server=url).set(rs.avg_latency)
                 avg_itl.labels(server=url).set(rs.avg_itl)
                 num_requests_swapped.labels(server=url).set(rs.num_swapped_requests)

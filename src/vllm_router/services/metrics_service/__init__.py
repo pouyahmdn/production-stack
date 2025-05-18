@@ -30,3 +30,12 @@ avg_itl = Gauge("vllm:avg_itl", "Average Inter-Token Latency", ["server"])
 num_requests_swapped = Gauge(
     "vllm:num_requests_swapped", "Number of swapped requests", ["server"]
 )
+allocated_blocks = Gauge(
+    "vllm:allocated_blocks", "Number of allocated blocks", ["server"]
+)
+pending_reserved_blocks = Gauge(
+    "vllm:pending_reserved_blocks", "Number of pending reserved blocks", ["server"]
+)
+num_free_blocks = Gauge(
+    "vllm:num_free_blocks", "Number of free blocks", ["server"]
+)

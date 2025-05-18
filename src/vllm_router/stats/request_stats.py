@@ -50,6 +50,12 @@ class RequestStats:
     avg_itl: float
     # Number of swapped requests (moved from GPU to CPU)
     num_swapped_requests: int
+    # Number of blocks currently allocated for active requests
+    allocated_blocks: int
+    # Number of blocks reserved for pending requests
+    pending_reserved_blocks: int
+    # Number of free blocks available in the system
+    num_free_blocks: int
 
 
 class MovingAverageMonitor:
@@ -367,6 +373,12 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             else:
                 swapped = 0
 
+            # Calculate allocated and reserved blocks
+            allocated = self.estimate_allocated_blocks(engine_url)
+            reserved = self.estimate_pending_reserved_blocks(engine_url)
+            # Calculate free blocks, ensuring we don't go below 0
+            free_blocks = TOTAL_NUMBER_OF_BLOCKS - allocated - reserved
+
             ret[ engine_url ] = RequestStats( qps = qps,
                 ttft = ttft,
                 in_prefill_requests = in_prefill,
@@ -378,7 +390,10 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
                 avg_decoding_length = avg_dec_len,
                 avg_latency = avg_lat,
                 avg_itl = avg_itl_val,
-                num_swapped_requests = swapped, )
+                num_swapped_requests = swapped,
+                allocated_blocks = allocated,
+                pending_reserved_blocks = reserved,
+                num_free_blocks = free_blocks, )
         return ret
 
     def estimate_allocated_blocks(self, engine_url: str) -> int:
