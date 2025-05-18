@@ -381,8 +381,7 @@ class HRARouter(RoutingInterface):
                     admissible.append(url)
 
             if not admissible:
-                # Oldest unschedulable request blocks younger ones to preserve
-                # fairness; stop here.
+                # Shortest unschedulable request blocks longer ones; stop here.
                 break
 
             # Choose replica with least queue len.
