@@ -376,7 +376,7 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
             # Calculate allocated and reserved blocks
             allocated = self.estimate_allocated_blocks(engine_url)
             reserved = self.estimate_pending_reserved_blocks(engine_url)
-            # Calculate free blocks, ensuring we don't go below 0
+            # Calculate free blocks
             free_blocks = TOTAL_NUMBER_OF_BLOCKS - allocated - reserved
 
             ret[ engine_url ] = RequestStats( qps = qps,
@@ -440,12 +440,14 @@ class RequestStatsMonitor( metaclass = SingletonMeta ):
         Returns:
             The total number of blocks that need to be reserved for pending requests
         """
-        if engine_url not in self.request_prefill_tokens:
+        if engine_url not in self.request_prefill_tokens or engine_url not in self.in_prefill_requests_ids:
             return 0
             
-        # Sum all prefill tokens for pending requests
+        # Sum prefill tokens only for requests that are in prefill phase
         total_prefill_tokens = sum(
-            tokens for tokens in self.request_prefill_tokens[engine_url].values()
+            self.request_prefill_tokens[engine_url][request_id]
+            for request_id in self.in_prefill_requests_ids[engine_url]
+            if request_id in self.request_prefill_tokens[engine_url]
         )
         
         # Calculate total expected tokens including decode phase
