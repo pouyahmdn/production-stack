@@ -14,6 +14,9 @@ from vllm_router.services.metrics_service import (
     num_prefill_requests,
     num_requests_running,
     num_requests_swapped,
+    allocated_blocks,
+    pending_reserved_blocks,
+    num_free_blocks,
 )
 from vllm_router.stats.request_stats import get_request_stats_monitor
 
@@ -44,6 +47,9 @@ async def metrics():
     for server, stat in stats.items():
         current_qps.labels(server=server).set(stat.qps)
         # Assuming stat contains the following attributes:
+        allocated_blocks.labels(server=server).set(stat.allocated_blocks)
+        pending_reserved_blocks.labels(server=server).set(stat.pending_reserved_blocks)
+        num_free_blocks.labels(server=server).set(stat.num_free_blocks)
         avg_decoding_length.labels(server=server).set(stat.avg_decoding_length)
         num_prefill_requests.labels(server=server).set(stat.in_prefill_requests)
         num_decoding_requests.labels(server=server).set(stat.in_decoding_requests)

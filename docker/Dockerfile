@@ -15,7 +15,7 @@ COPY .git/ .git/
 # Copy the rest of the application code
 COPY src/ src/
 
-ARG INSTALL_SENTENCE_TRANSFORMERS=true
+ARG INSTALL_SENTENCE_TRANSFORMERS=false
 ENV INSTALL_SENTENCE_TRANSFORMERS=${INSTALL_SENTENCE_TRANSFORMERS}
 
 # Install dependencies (use cache, and delete after install, to speed up the build)

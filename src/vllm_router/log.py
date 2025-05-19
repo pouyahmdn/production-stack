@@ -31,13 +31,13 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def init_logger(name: str, log_level=logging.DEBUG) -> Logger:
+def init_logger(name: str, log_level=logging.INFO) -> Logger:
     logger = logging.getLogger(name)
 
     ch = logging.StreamHandler()
     ch.setLevel(log_level)
     ch.setFormatter(CustomFormatter())
     logger.addHandler(ch)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     return logger

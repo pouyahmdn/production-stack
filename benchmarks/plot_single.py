@@ -9,8 +9,9 @@ import numpy as np
 @click.command( )
 @click.option( "--path", type = click.Path( exists = True, file_okay = False, dir_okay = True ), required = True )
 @click.option( '--test_names', type = str, multiple = True, required = True )
-def main( path: str, test_names: list[ str ] ):
-    os.makedirs( "figures", exist_ok = True )
+@click.option( '--output_dir', type = str, default = "figures", required = True )
+def main( path: str, test_names: list[ str ], output_dir: str ):
+    os.makedirs( output_dir, exist_ok = True )
     # #################################################################################################################
 
     for key, lbl in [ ('ttlt', 'Average Response Time (s)'), ('ttft', "Average Time to First Token (s)"),
@@ -38,7 +39,8 @@ def main( path: str, test_names: list[ str ] ):
                            df[ 'prompt_tokens' ].mean( ),
                            df[ 'generation_tokens' ].mean( ),
                            df[ 'user_id' ].nunique( ),
-                           df[ 'question_id' ].mean( ) )
+                           df[ 'question_id' ].mean( ),
+                           f"{key} = {df[ key ].mean( ) :.3f}" )
                     stack_results.append( df[ key ].mean( ) )
 
             stack_results = np.array( stack_results )
@@ -58,7 +60,7 @@ def main( path: str, test_names: list[ str ] ):
         ax.set_ylabel( lbl )
         ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
         plt.legend( loc = "best" )
-        plt.savefig( f"figures/{key}.png", dpi = 300 )
+        plt.savefig( f"{output_dir}/{key}.png", dpi = 300 )
 
     # #################################################################################################################
 
@@ -100,7 +102,7 @@ def main( path: str, test_names: list[ str ] ):
     ax.set_ylabel( "True Queries Per Second" )
     ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
     plt.legend( loc = "best" )
-    plt.savefig( "figures/qps.png", dpi = 300 )
+    plt.savefig( f"{output_dir}/qps.png", dpi = 300 )
 
     # #################################################################################################################
 
@@ -138,7 +140,7 @@ def main( path: str, test_names: list[ str ] ):
     ax.set_ylabel( "Generation Throughput (BUYER BEWARE)" )
     ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
     plt.legend( loc = "best" )
-    plt.savefig( "figures/out_thr.png", dpi = 300 )
+    plt.savefig( f"{output_dir}/out_thr.png", dpi = 300 )
 
     # #################################################################################################################
 
@@ -176,7 +178,7 @@ def main( path: str, test_names: list[ str ] ):
     ax.set_ylabel( "Prefill Throughput (BUYER BEWARE)" )
     ax.set_title( f"1 round, ShareGPT, inflation in/out 5%x10 (throttle at 4096/4096 tokens)" )
     plt.legend( loc = "best" )
-    plt.savefig( "figures/in_thr.png", dpi = 300 )
+    plt.savefig( f"{output_dir}/in_thr.png", dpi = 300 )
 
     # #################################################################################################################
 
