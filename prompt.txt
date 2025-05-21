@@ -1,0 +1,7 @@
+We are sitting in the production code directory for a distributed LLM serving cluster. The External folder contains the codebase of a simulator named Vidur for the same system. You can find Vidur's paper in External/vidur/vidur.pdf if you want to take a look.
+
+Using the Vidur simulator, I designed and evaluated an efficient request scheduler for distributed LLM serving clusters. You can see its implementation in External/vidur/vidur/scheduler/global_scheduler/ai_global_scheduler.py.
+I want to implement the same algorithm in production. In particular, I want it to be implemented as a new class in src/vllm_router/routers/routing_logic.py.
+
+First, familiarize yourself with the simulator's codebase and try to create your own mental model of the system. Next familiarize yourself with the production codebase.
+Once you're comfortable with both codebases, transfer the scheduling algorithm (External/vidur/vidur/scheduler/global_scheduler/ai_global_scheduler.py) from simulator's codebase to the production codebase (src/vllm_router/routers/routing_logic.py).
