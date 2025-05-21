@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # Get routing logic from environment variable or command line argument
 ROUTING_LOGIC=${ROUTING_LOGIC:-llq}  # Default to llq if not provided
@@ -11,6 +10,7 @@ REPLICAS=${2:-4}
 # Get environment from command line argument or default to test
 ENVIRONMENT=${3:-test}
 
+set -ex
 
 helm upgrade --install vllm-${ROUTING_LOGIC} . -f values-benchmark-router.yaml \
     --namespace ${ROUTING_LOGIC} --create-namespace \
