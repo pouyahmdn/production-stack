@@ -5,3 +5,4 @@ I want to implement the same algorithm in production. In particular, I want it t
 
 First, familiarize yourself with the simulator's codebase and try to create your own mental model of the system. Next familiarize yourself with the production codebase.
 Once you're comfortable with both codebases, transfer the scheduling algorithm (External/vidur/vidur/scheduler/global_scheduler/ai_global_scheduler.py) from simulator's codebase to the production codebase (src/vllm_router/routers/routing_logic.py).
+Note that in production, when the client sends the router a request, it include an extra header "x-prefill-tokens" that contains the number of prefill tokens of the client's prompt.
