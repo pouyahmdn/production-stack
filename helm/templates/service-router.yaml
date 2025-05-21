@@ -30,6 +30,28 @@ spec:
       name: benchmark-svc
   selector:
   {{- include "chart.routerLabels" . | nindent 4 }}
+---
+# Prometheus Monitor Service (Metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: router-metrics-monitor-{{ .Values.routerSpec.routingLogic }}
+  namespace: monitoring
+  labels:
+    environment: {{ .Values.routerSpec.labels.environment }}
+    release: kube-prom-stack
+spec:
+  endpoints:
+    - path: /metrics
+      port: router-sport
+  namespaceSelector:
+      matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      environment: {{ .Values.routerSpec.labels.environment }}
+      release: {{ .Values.routerSpec.labels.release }}
+
 
 {{- end }}
 

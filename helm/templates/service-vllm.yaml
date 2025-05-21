@@ -14,3 +14,23 @@ spec:
       protocol: TCP
   selector:
   {{- include "chart.engineLabels" . | nindent 4 }}
+---
+# Prometheus Monitor Service (Metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-monitor-{{ .Values.routerSpec.routingLogic }}
+  namespace: monitoring
+  labels:
+    environment: {{ .Values.servingEngineSpec.labels.environment }}
+    release: kube-prom-stack
+spec:
+  endpoints:
+    - port: {{ include "chart.service-port-name" . }}
+  namespaceSelector:
+      matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      environment: {{ .Values.servingEngineSpec.labels.environment }}
+      release: {{ .Values.servingEngineSpec.labels.release }}
