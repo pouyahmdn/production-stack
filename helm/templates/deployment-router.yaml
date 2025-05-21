@@ -6,6 +6,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
   {{- include "chart.routerLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook-weight": "0"
 spec:
   replicas: {{ .Values.routerSpec.replicaCount }}
   {{- include "chart.routerStrategy" . | nindent 2 }}
@@ -19,6 +21,48 @@ spec:
     spec:
       serviceAccountName: {{ .Release.Name }}-router-service-account
       containers:
+      - name: benchmark
+        image: 430033405856.dkr.ecr.us-east-2.amazonaws.com/glia/vllm-benchmarking:latest
+        imagePullPolicy: "Always"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            python api.py \
+              --port 3000 \
+              --wandb-project "$WANDB_PROJECT" \
+              --wandb-entity "$WANDB_ENTITY"
+        env:
+          {{- if .Values.wandb.enabled }}
+          - name: WANDB_PROJECT
+            value: {{ .Values.wandb.project }}
+          - name: WANDB_ENTITY
+            value: {{ .Values.wandb.entity }}
+          - name: WANDB_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Release.Name }}-secrets
+                key: wandb_api_key
+          {{- end }}
+          {{- $model := index .Values.servingEngineSpec.modelSpec 0 }}
+          - name: HF_TOKEN
+            {{- if kindIs "string" $model.hf_token }}
+            value: {{ $model.hf_token }}
+            {{- else }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ $model.hf_token.secretName }}
+                key: {{ $model.hf_token.secretKey }}
+            {{- end }}
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        ports:
+          - containerPort: 3000
+      
       - name: router-container
         image: "{{ .Values.routerSpec.repository | default "lmcache/lmstack-router" }}:{{ .Values.routerSpec.tag | default "latest" }}"
         imagePullPolicy: "{{ .Values.routerSpec.imagePullPolicy | default "Always" }}"

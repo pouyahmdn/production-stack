@@ -2,8 +2,8 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: "{{ .Release.Name }}-router-service"
   namespace: {{ .Release.Namespace }}
+  name: "{{ .Release.Name }}-router-service"
   labels:
   {{- include "chart.routerLabels" . | nindent 4 }}
 spec:
@@ -15,4 +15,21 @@ spec:
       protocol: TCP
   selector:
   {{- include "chart.routerLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: benchmark-svc
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: benchmark-svc
+  selector:
+  {{- include "chart.routerLabels" . | nindent 4 }}
+
 {{- end }}
+

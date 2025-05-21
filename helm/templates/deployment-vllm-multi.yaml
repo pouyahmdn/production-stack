@@ -97,9 +97,9 @@ spec:
           - '{"kv_connector":"LMCacheConnector","kv_role":"kv_both"}'
           {{-   end }}
           {{- end }}
-          {{- if $modelSpec.chatTemplate }}
+          {{- if $modelSpec.chatTemplateString }}
           - "--chat-template"
-          - "/chat_templates/chat-template.jinga"
+          - {{ $modelSpec.chatTemplateString | quote }}
           {{- end }}
           {{- if .Values.servingEngineSpec.containerSecurityContext }}
           securityContext:
@@ -119,6 +119,10 @@ spec:
             value: {{ default 0 $modelSpec.vllmConfig.v1 | quote }}
           {{- end}}
           {{- end}}
+          - name: VLLM_KEEP_ALIVE_ON_ENGINE_DEATH
+            value: "1"
+          - name: VLLM_ENGINE_ITERATION_TIMEOUT_S
+            value: "3000"
           {{- if $modelSpec.hf_token }}
           - name: HF_TOKEN
             {{- if kindIs "string" $modelSpec.hf_token }}
@@ -156,7 +160,7 @@ spec:
           - name: LMCACHE_USE_EXPERIMENTAL
             value: "True"
           - name: VLLM_RPC_TIMEOUT
-            value: "1000000"
+            value: "3000000"
           {{-   end }}
           {{-   if $modelSpec.lmcacheConfig.cpuOffloadingBufferSize }}
           - name: LMCACHE_LOCAL_CPU

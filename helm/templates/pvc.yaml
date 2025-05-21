@@ -1,5 +1,20 @@
 {{- range $modelSpec := .Values.servingEngineSpec.modelSpec }}
 {{- with $ -}}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Name }}-{{ .Values.storageClass.name }}
+  namespace: {{ .Release.Namespace }}
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: {{ .Values.storageClass.fileSystemId }}
+  directoryPerms: "700"
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  basePath: "/dynamic_provisioning"
+---
 {{- if and (hasKey $modelSpec "pvcStorage") (not (empty $modelSpec.pvcStorage)) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -17,7 +32,7 @@ spec:
     requests:
       storage: {{ $modelSpec.pvcStorage | default "20Gi" }}  # Default to 20Gi if not set
   {{- if hasKey $modelSpec "storageClass" }}
-  storageClassName: "{{ $modelSpec.storageClass }}"
+  storageClassName: "{{ .Release.Name }}-{{ $modelSpec.storageClass }}"
   {{- end }}
   {{- if not (empty $modelSpec.pvcMatchLabels) }}
   selector:

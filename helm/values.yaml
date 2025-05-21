@@ -1,6 +1,8 @@
 # -- Default values for llmstack helm chart
 # -- Declare variables to be passed into your templates.
 
+wandb: {}
+
 # -- Serving engine configuratoon
 servingEngineSpec:
   # -- Customized labels for the serving engine deployment
